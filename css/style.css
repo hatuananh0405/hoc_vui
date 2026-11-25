@@ -202,8 +202,8 @@ textarea { resize: vertical; font-family: ui-monospace, Menlo, Consolas, monospa
   content: ''; position: absolute; left: 50%; bottom: -9px; width: 12px; height: 12px; background: #fff;
   border-right: 3px solid var(--primary); border-bottom: 3px solid var(--primary); transform: translateX(-50%) rotate(45deg);
 }
-.act-btn.soon { border-color: #9aa0c8; }
-.act-btn.soon::after { border-color: #9aa0c8; }
+.act-btn.stand { border-color: #f5a524; }
+.act-btn.stand::after { border-color: #f5a524; }
 .act-btn:hover { background: #f0f0ff; }
 @keyframes act-bob { 50% { margin-top: -5px; } }
 
