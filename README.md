@@ -9,12 +9,17 @@ App chạy hoàn toàn trên trình duyệt, không cần server hay tài khoả
 - **Khi đang sửa code**: chạy server tĩnh trong thư mục này (`python3 -m http.server`), rồi mở `http://localhost:8000`.
 - Sửa code xong, chạy `node build.mjs` để tạo lại `dist/hoc-vui.html`.
 
-## Phòng học (màn mở đầu)
+## Phòng riêng (màn mở đầu)
 
-Mở app sẽ thấy một phòng học nhỏ có hoạt ảnh: chữ phấn tự viết lên bảng, mây trôi ngoài cửa sổ, đồng hồ chạy, bạn nhỏ chớp mắt.
-Bấm vào bàn học (hoặc bạn nhỏ, cái ghế, hoặc nhấn Enter): bạn nhỏ đi tới ngồi xuống, bật đèn bàn, camera phóng vào bàn rồi menu hiện ra.
-Nút "Bỏ qua" vào menu ngay. Nút 🏫 trên thanh trên cùng đưa bạn về lại phòng học.
-Nếu máy bật chế độ giảm chuyển động (prefers-reduced-motion), app bỏ qua hoạt ảnh.
+Mở app sẽ vào phòng riêng nhìn chéo từ trên cao (isometric 2.5D), có nhân vật chibi đi lại được.
+
+- **Di chuyển**: bấm hoặc chạm vào sàn, nhân vật tự tìm đường và đi vòng qua đồ đạc. Trên máy tính dùng được phím mũi tên hoặc WASD.
+- **Ngồi học**: lại gần bàn học thì hiện nút **🪑 Ngồi học**. Bấm nút đó, bấm thẳng vào bàn, hoặc nhấn E / Enter: nhân vật ngồi xuống, đèn bàn bật, camera phóng vào bàn rồi mở menu.
+- **Góc xem phim** và **góc nghe nhạc** mới để sẵn chỗ, đi vào sẽ báo "Sắp có".
+- Nút "Bỏ qua" vào menu ngay. Nút 🏫 trên thanh trên cùng đưa về lại phòng.
+- Trên điện thoại, camera phóng gần hơn và bám theo nhân vật.
+
+Phòng vẽ bằng canvas 2D, không dùng thư viện. Đồ đạc, chỗ bị chặn và các chỗ tương tác khai báo ở đầu `js/classroom.js` (`BLOCKS`, `SPOTS`, `OBJECTS`), nên thêm góc mới chỉ cần thêm vào các danh sách này.
 
 ## Trò chơi
 
@@ -62,7 +67,7 @@ index.html        khung trang
 css/style.css     giao diện (responsive cho điện thoại)
 js/main.js        các màn hình và điều hướng
 js/games.js       logic các trò chơi
-js/classroom.js   phòng học có hoạt ảnh (SVG + CSS)
+js/classroom.js   phòng riêng isometric, nhân vật, tìm đường (canvas)
 js/parser.js      đọc file docx/txt/csv/json
 js/store.js       lưu trữ, XP, cấp độ, huy hiệu
 js/sample.js      bộ đề mẫu

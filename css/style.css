@@ -172,92 +172,47 @@ textarea { resize: vertical; font-family: ui-monospace, Menlo, Consolas, monospa
   .tile { font-size: .9rem; padding: 10px; }
 }
 
-/* ================= Phòng học (màn mở đầu) ================= */
-.room-wrap { max-width: 860px; margin: 0 auto; }
+/* ================= Phòng riêng (màn mở đầu) ================= */
+.room-wrap { max-width: 960px; margin: 0 auto; }
 .scene {
-  position: relative; overflow: hidden; border-radius: 20px; background: #fdf3e1;
-  box-shadow: 0 10px 30px rgba(40, 40, 100, .15); outline: none; user-select: none;
+  position: relative; overflow: hidden; border-radius: 20px; background: #efe4d6;
+  box-shadow: 0 10px 30px rgba(40, 40, 100, .15); user-select: none; -webkit-user-select: none;
   -webkit-tap-highlight-color: transparent;
 }
-.scene:focus-visible { box-shadow: 0 0 0 4px rgba(91, 91, 240, .45); }
-.room { display: block; width: 100%; height: auto; transition: transform .9s cubic-bezier(.6, 0, .3, 1); }
+.scene canvas { display: block; width: 100%; cursor: pointer; touch-action: manipulation; }
 .scene-fade { position: absolute; inset: 0; background: var(--bg); opacity: 0; pointer-events: none; transition: opacity .4s; }
-.room-hint { text-align: center; color: var(--muted); margin-top: 14px; }
-
-.scene .hit { cursor: pointer; }
-.scene.busy .hit { cursor: default; }
-.scene:not(.busy) .desk { animation: desk-glow 2s ease-in-out infinite; }
-.scene:not(.busy) .hit:hover { filter: drop-shadow(0 0 8px rgba(255, 200, 60, .95)); animation: none; }
-@keyframes desk-glow {
-  0%, 100% { filter: drop-shadow(0 0 0 rgba(255, 200, 60, 0)); }
-  50% { filter: drop-shadow(0 0 7px rgba(255, 200, 60, .85)); }
-}
-
-/* Bảng đen: chữ phấn tự viết */
-.chalk { fill: transparent; stroke: #f4f1e8; stroke-width: 1.1; stroke-dasharray: 420; stroke-dashoffset: 420;
-  font-family: 'Comic Sans MS', 'Segoe Print', 'Chalkboard SE', cursive; animation: chalk-write 2.4s .3s forwards; }
-.chalk.big { font-size: 50px; font-weight: 700; }
-.chalk.small { font-size: 22px; animation-delay: 1.4s; }
-.chalk.tiny { font-size: 15px; animation-delay: 2.2s; opacity: .8; }
-@keyframes chalk-write {
-  70% { stroke-dashoffset: 0; fill: transparent; }
-  100% { stroke-dashoffset: 0; fill: #f4f1e8; }
-}
-
-/* Cửa sổ, đồng hồ, cây */
-.cloud { animation: drift 26s linear infinite; }
-.cloud.c2 { animation-duration: 34s; animation-delay: -15s; }
-@keyframes drift { from { transform: translateX(0); } to { transform: translateX(270px); } }
-.sun { transform-box: fill-box; transform-origin: center; animation: sun-pulse 4s ease-in-out infinite; }
-@keyframes sun-pulse { 50% { transform: scale(1.12); } }
-.hand { transform-box: view-box; transform-origin: 480px 110px; }
-.hand.sec { animation: spin 60s steps(60) infinite; }
-.hand.min { animation: spin 3600s linear infinite; }
-.hand.hour { transform: rotate(-60deg); }
-@keyframes spin { from { transform: rotate(0); } to { transform: rotate(360deg); } }
-.plant { transform-box: fill-box; transform-origin: 50% 100%; animation: sway 5s ease-in-out infinite; }
-@keyframes sway { 50% { transform: rotate(3deg); } }
-
-/* Bạn nhỏ */
-#stu { transform: translateX(110px); transition: transform 1.2s ease-in-out; }
-.scene.walking #stu, .scene.seated #stu { transform: translateX(220px); }
-.stu-bob { animation: bob 2.6s ease-in-out infinite; }
-@keyframes bob { 50% { transform: translateY(-2px); } }
-.eye { transform-box: fill-box; transform-origin: center; animation: blink 4.5s infinite; }
-@keyframes blink { 0%, 93%, 100% { transform: scaleY(1); } 96% { transform: scaleY(.1); } }
-.leg, .arm { transform-box: fill-box; transform-origin: 50% 4%; }
-.arm { transition: transform .45s ease; }
-.legs-sit { display: none; }
-.backpack { transition: opacity .3s; }
-.scene.walking .stu-bob { animation: walk-bob .3s ease-in-out infinite alternate; }
-@keyframes walk-bob { to { transform: translateY(-4px); } }
-.scene.walking .leg-f { animation: swing .3s ease-in-out infinite alternate; }
-.scene.walking .leg-b { animation: swing .3s ease-in-out infinite alternate-reverse; }
-.scene.walking .arm { animation: swing .3s ease-in-out infinite alternate-reverse; }
-@keyframes swing { from { transform: rotate(-22deg); } to { transform: rotate(22deg); } }
-.scene.seated .legs-stand { display: none; }
-.scene.seated .legs-sit { display: inline; }
-.scene.seated .backpack { opacity: 0; }
-.scene.seated .stu-bob { animation: none; }
-.scene.seated .arm { transform: rotate(-82deg); }
-.head { transition: transform .4s; transform-box: fill-box; transform-origin: 30% 100%; }
-.scene.seated .head { transform: rotate(10deg); }
-
-/* Đèn bàn và camera */
-.dim, .lamp-light { opacity: 0; pointer-events: none; transition: opacity .5s; }
-.bulb { transition: fill .3s; }
-.scene.lamp-on .dim { opacity: .28; }
-.scene.lamp-on .lamp-light { opacity: 1; }
-.scene.lamp-on .bulb { fill: #fff6b0; }
-.scene.zoom .room { transform: scale(2.6); }
 .scene.fade .scene-fade { opacity: 1; }
+.room-hint { text-align: center; color: var(--muted); margin-top: 14px; font-size: .92rem; }
 
-/* Bong bóng gợi ý */
-.bubble { animation: float 1.6s ease-in-out infinite; transition: opacity .3s; }
-@keyframes float { 50% { transform: translateY(-5px); } }
-.scene.busy .bubble { opacity: 0; }
-.scene.nudge .bubble { animation: nudge .5s; }
-@keyframes nudge { 25% { transform: translateX(-6px); } 75% { transform: translateX(6px); } }
+.room-intro {
+  position: absolute; top: 12px; left: 50%; transform: translateX(-50%); max-width: calc(100% - 24px);
+  background: rgba(255, 255, 255, .94); padding: 6px 14px; border-radius: 99px; font-weight: 600; font-size: .88rem;
+  box-shadow: 0 4px 12px rgba(40, 40, 100, .15); pointer-events: none; transition: opacity .4s; text-align: center;
+}
+.room-intro.hide { opacity: 0; }
+
+/* Nút tương tác nổi trên đồ vật, kiểu Play Together */
+.act-btn {
+  position: absolute; transform: translate(-50%, -100%); white-space: nowrap;
+  background: #fff; color: var(--text); border: 3px solid var(--primary); border-radius: 99px;
+  padding: 8px 16px; font: inherit; font-weight: 800; cursor: pointer;
+  box-shadow: 0 6px 16px rgba(40, 40, 100, .25); animation: act-bob 1.2s ease-in-out infinite;
+}
+.act-btn::after {
+  content: ''; position: absolute; left: 50%; bottom: -9px; width: 12px; height: 12px; background: #fff;
+  border-right: 3px solid var(--primary); border-bottom: 3px solid var(--primary); transform: translateX(-50%) rotate(45deg);
+}
+.act-btn.soon { border-color: #9aa0c8; }
+.act-btn.soon::after { border-color: #9aa0c8; }
+.act-btn:hover { background: #f0f0ff; }
+@keyframes act-bob { 50% { margin-top: -5px; } }
+
+.room-toast {
+  position: absolute; bottom: 14px; left: 50%; transform: translateX(-50%); max-width: calc(100% - 24px);
+  background: rgba(31, 35, 64, .9); color: #fff; padding: 8px 16px; border-radius: 12px; font-weight: 600;
+  pointer-events: none; transition: opacity .3s; text-align: center;
+}
+.room-toast.hide { opacity: 0; }
 
 /* Menu hiện ra sau khi ngồi vào bàn */
 #app.enter > * { animation: rise .5s both; }
@@ -266,11 +221,6 @@ textarea { resize: vertical; font-family: ui-monospace, Menlo, Consolas, monospa
 #app.enter > *:nth-child(4) { animation-delay: .24s; }
 @keyframes rise { from { opacity: 0; transform: translateY(16px); } }
 
-@media (max-width: 600px) {
-  .scene.zoom .room { transform: scale(2.1); }
-}
-
 @media (prefers-reduced-motion: reduce) {
-  .scene *, #app.enter > * { animation: none !important; transition: none !important; }
-  .chalk { stroke-dashoffset: 0; fill: #f4f1e8; }
+  .act-btn, #app.enter > * { animation: none !important; }
 }
