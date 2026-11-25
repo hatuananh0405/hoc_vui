@@ -1,7 +1,8 @@
 // Phòng riêng nhìn chéo từ trên cao (isometric 2.5D), vẽ bằng canvas, không cần thư viện.
 // Nhân vật đi lại bằng cách bấm vào sàn hoặc dùng phím mũi tên / WASD.
-// Đến gần bàn học và bấm "Ngồi học": nhân vật ngồi xuống, bật đèn, camera phóng vào bàn rồi mở menu.
-// Góc xem phim và góc nghe nhạc hiện mới để sẵn chỗ, chưa có chức năng.
+// - Bàn học: ngồi xuống, bật đèn, camera phóng vào bàn rồi mở menu.
+// - Góc âm nhạc: ngồi ghế dài, đeo tai nghe chụp và bịt mắt, lắc lư theo nhạc.
+// - Góc xem phim: nằm trên sofa xem TV, ăn bỏng ngô.
 // Trả về cleanup() để dọn vòng lặp vẽ, timer và phím tắt.
 import { levelInfo } from './store.js';
 
@@ -24,32 +25,44 @@ const COL = { shirt: '#5b5bf0', pants: '#34406b', skin: '#ffd7b5', hair: '#3b2a2
 
 const iso = (x, y, z = 0) => [(x - y) * HW, (x + y) * HH - z];
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const lerp = (a, b, k) => a + (b - a) * k;
 
 // ---------- Đồ đạc ----------
-// Ô bị chặn (nhân vật không đi xuyên qua)
+const SOFA_TOP = 20; // độ cao mặt đệm sofa (px)
+const BENCH_TOP = 22; // độ cao mặt đệm ghế dài (px)
+const LIE_X = 7.6; // nhân vật nằm trên mặt phẳng x = LIE_X của sofa
+
+// Vùng bị chặn (nhân vật không đi xuyên qua)
 const BLOCKS = [
   { x: 1, y: 0, w: 2.2, d: 1 }, // bàn học
   { x: 1.75, y: 1.2, w: 0.7, d: 0.7 }, // ghế
   { x: 0, y: 2.2, w: 0.6, d: 1.8 }, // kệ sách
   { x: 0, y: 5.9, w: 1.8, d: 3.1 }, // giường
   { x: 0.1, y: 0.1, w: 0.7, d: 0.7 }, // chậu cây
+  { x: 7.5, y: 0, w: 2, d: 0.45 }, // kệ TV
+  { x: 6.9, y: 1.3, w: 1.1, d: 2.6 }, // sofa
+  { x: 7.1, y: 6.38, w: 2, d: 0.57 }, // ghế dài
+  { x: 9.3, y: 6.05, w: 0.45, d: 0.45 }, // loa
 ];
 
 // Những chỗ tương tác được
-const SPOTS = [
-  { id: 'desk', label: '🪑 Ngồi học', x: 2.1, y: 1.5, near: 1.3, btn: [2.1, 0.5, 92], action: 'sit' },
-  {
-    id: 'movie', label: '🎬 Góc xem phim', soon: true, zone: { x: 6.2, y: 5.4, w: 3.6, d: 3.4 },
-    btn: [8, 7.1, 60], color: '#5b5bf0', icon: '🎬', title: 'Góc xem phim',
-    msg: '🎬 Góc xem phim đang được xây. Sắp có!',
-  },
-  {
-    id: 'music', label: '🎵 Góc nghe nhạc', soon: true, zone: { x: 7, y: 0.2, w: 2.8, d: 2.8 },
-    btn: [8.4, 1.6, 60], color: '#1fa971', icon: '🎵', title: 'Góc nghe nhạc',
-    msg: '🎵 Góc nghe nhạc đang được xây. Sắp có!',
-  },
-];
-const DESK = SPOTS[0];
+const DESK = { id: 'desk', label: '🪑 Ngồi học', x: 2.1, y: 1.5, near: 1.3, btn: [2.1, 0.5, 92], action: 'sit' };
+const MUSIC = {
+  id: 'music', label: '🎧 Nghe nhạc', action: 'lounge', pose: 'bench',
+  zone: { x: 6.4, y: 5.6, w: 3.4, d: 3.2 },
+  seat: { x: 8.1, y: 6.75, fx: 0, fy: 1 }, exit: { x: 8.1, y: 7.5 },
+  btn: [8.1, 6.6, 70], standBtn: [8.1, 6.75, 112],
+  msg: '🎧 Đeo tai nghe, nhắm mắt thư giãn...',
+};
+const MOVIE = {
+  id: 'movie', label: '🍿 Xem phim', action: 'lounge', pose: 'sofa',
+  zone: { x: 6.6, y: 0.5, w: 3.2, d: 3.9 },
+  seat: { x: LIE_X, y: 2.6, fx: 0, fy: -1 }, exit: { x: 8.5, y: 2.6 },
+  btn: [7.5, 2.6, 66], standBtn: [LIE_X, 3.4, 100],
+  msg: '🍿 Nằm xem phim, nhâm nhi bỏng ngô...',
+};
+const SPOTS = [DESK, MUSIC, MOVIE];
+const STAND = { id: 'stand', label: '⬆️ Đứng dậy', action: 'stand' };
 
 // ---------- Hàm vẽ cơ bản ----------
 function shade(hex, f) {
@@ -93,6 +106,13 @@ function ell(c, x, y, rx, ry, fill) {
   if (fill) { c.fillStyle = fill; c.fill(); }
 }
 
+function limb(c, a, b, w, col) {
+  c.strokeStyle = col;
+  c.lineWidth = w;
+  c.lineCap = 'round';
+  line(c, a, b);
+}
+
 // Khối hộp isometric: (x, y) ô, z độ cao đáy (px), w/d kích thước ô, h chiều cao (px)
 function box(c, x, y, z, w, d, h, color) {
   poly(c, [iso(x, y + d, z), iso(x + w, y + d, z), iso(x + w, y + d, z + h), iso(x, y + d, z + h)], shade(color, -0.12));
@@ -110,7 +130,7 @@ function wallL(c, x0, yLeft, zTop, fn) {
   c.restore();
 }
 
-// Vẽ trên mặt phẳng y = y0 (tường phải). Gốc ở đầu bên trái màn hình (x nhỏ).
+// Vẽ trên mặt phẳng y = y0 (tường phải hoặc mặt trước của đồ vật). Gốc ở đầu bên trái màn hình (x nhỏ).
 function wallR(c, xLeft, y0, zTop, fn) {
   const [sx, sy] = iso(xLeft, y0, zTop);
   c.save();
@@ -118,6 +138,16 @@ function wallR(c, xLeft, y0, zTop, fn) {
   c.transform(1, 0.5, 0, 1, 0, 0);
   fn();
   c.restore();
+}
+
+// Hình tròn nằm trên sàn (thảm tròn)
+function floorCircle(cx, cy, r, z = 0) {
+  const pts = [];
+  for (let i = 0; i < 32; i++) {
+    const a = (i / 32) * Math.PI * 2;
+    pts.push(iso(cx + Math.cos(a) * r, cy + Math.sin(a) * r, z));
+  }
+  return pts;
 }
 
 // ---------- Phòng ----------
@@ -211,37 +241,130 @@ function drawRoom(c, S) {
     hand(s / 60, 10, 0.8, '#e5484d');
     ell(c, 0, 0, 1.6, 1.6, '#1f2340');
   });
+
+  drawTV(c, S);
 }
 
-function drawFloorDecor(c, S) {
-  // Thảm
+// ---------- TV treo tường ----------
+const TV = { x: 7.45, zTop: 106, w: 64, h: 38 };
+const SHOW_GLOW = ['#7cc8ff', '#ff9a5a', '#8f7cff'];
+
+function drawTV(c, S) {
+  wallR(c, TV.x, 0, TV.zTop, () => {
+    const { w, h } = TV;
+    rr(c, -4, -4, w + 8, h + 8, 5, '#1f2340');
+    c.save();
+    c.beginPath();
+    c.rect(0, 0, w, h);
+    c.clip();
+    if (S.tv) drawShow(c, w, h, S.t - S.tvT0);
+    else {
+      c.fillStyle = '#23263d';
+      c.fillRect(0, 0, w, h);
+      poly(c, [[w * 0.15, 0], [w * 0.42, 0], [w * 0.2, h], [-w * 0.07, h]], 'rgba(255,255,255,.07)');
+    }
+    c.restore();
+    ell(c, w / 2, h + 2, 1.3, 1.3, S.tv ? '#1fa971' : '#e5484d');
+  });
+}
+
+// Phim hoạt hình nhỏ chiếu trên TV: 3 cảnh luân phiên, mỗi cảnh 5 giây
+function drawShow(c, w, h, tt) {
+  const scene = Math.floor(tt / 5) % 3;
+  const k = (tt % 5) / 5;
+  if (scene === 0) {
+    // Ban ngày: quả bóng nảy trên đồi
+    const g = c.createLinearGradient(0, 0, 0, h);
+    g.addColorStop(0, '#6cc4ff');
+    g.addColorStop(1, '#cdeeff');
+    c.fillStyle = g;
+    c.fillRect(0, 0, w, h);
+    ell(c, ((tt * 8) % (w + 30)) - 15, 9, 7, 3.5, '#fff');
+    ell(c, w * 0.5, h + 8, w * 0.8, 16, '#7ccf6e');
+    const bx = lerp(-6, w + 6, k);
+    const by = h - 13 - Math.abs(Math.sin(tt * 5)) * 15;
+    ell(c, bx, h - 9, 5, 1.6, 'rgba(0,0,0,.18)');
+    ell(c, bx, by, 5, 5, '#e5484d');
+    ell(c, bx - 1.5, by - 1.5, 1.5, 1.5, '#ff9a9a');
+  } else if (scene === 1) {
+    // Hoàng hôn: mặt trời lặn, chim bay
+    const g = c.createLinearGradient(0, 0, 0, h);
+    g.addColorStop(0, '#5b3f8f');
+    g.addColorStop(0.6, '#ff8a5a');
+    g.addColorStop(1, '#ffd08a');
+    c.fillStyle = g;
+    c.fillRect(0, 0, w, h);
+    ell(c, w * 0.5, h * 0.55 + k * 10, 10, 10, '#ffe066');
+    c.fillStyle = '#3b2a4a';
+    c.fillRect(0, h - 7, w, 7);
+    c.strokeStyle = '#2a1f3a';
+    c.lineWidth = 1.2;
+    for (let i = 0; i < 3; i++) {
+      const x = lerp(w + 8, -8, (k + i * 0.18) % 1);
+      const y = 9 + i * 5 + Math.sin(tt * 3 + i) * 1.5;
+      c.beginPath();
+      c.moveTo(x - 3, y - 1.5);
+      c.quadraticCurveTo(x - 1.5, y - 3, x, y);
+      c.quadraticCurveTo(x + 1.5, y - 3, x + 3, y - 1.5);
+      c.stroke();
+    }
+  } else {
+    // Ban đêm: tên lửa bay giữa các vì sao
+    c.fillStyle = '#141a3a';
+    c.fillRect(0, 0, w, h);
+    for (let i = 0; i < 14; i++) {
+      const sx = (i * 37) % w;
+      const sy = (i * 23) % h;
+      c.globalAlpha = 0.4 + 0.6 * Math.abs(Math.sin(tt * 2 + i));
+      ell(c, sx, sy, 0.9, 0.9, '#fff');
+    }
+    c.globalAlpha = 1;
+    ell(c, w - 12, 10, 6, 6, '#f1e6b8');
+    const rx = lerp(-10, w + 10, k);
+    const ry = h * 0.6 - k * 14;
+    c.save();
+    c.translate(rx, ry);
+    c.rotate(-0.35);
+    ell(c, -7, 0, 3 + Math.random() * 1.5, 1.8, '#ffb14a');
+    rr(c, -5, -2.5, 10, 5, 2.5, '#f4f1e8');
+    poly(c, [[5, -2.5], [8.5, 0], [5, 2.5]], '#e5484d');
+    ell(c, 1, 0, 1.2, 1.2, '#5b9bff');
+    c.restore();
+  }
+  // Hiệu ứng bật TV: vạch sáng mở rộng ra
+  if (tt < 0.5) {
+    const p = tt / 0.5;
+    c.fillStyle = '#000';
+    c.fillRect(0, 0, w, h * (1 - p) * 0.5);
+    c.fillRect(0, h - h * (1 - p) * 0.5, w, h * (1 - p) * 0.5);
+    c.fillStyle = `rgba(255,255,255,${1 - p})`;
+    c.fillRect(0, h / 2 - 1, w, 2);
+  }
+  // Vạch quét mờ
+  c.fillStyle = 'rgba(0,0,0,.06)';
+  for (let y = 0; y < h; y += 2) c.fillRect(0, y, w, 1);
+}
+
+function drawFloorDecor(c) {
+  // Thảm hồng giữa phòng
   poly(c, [iso(3.6, 2.8), iso(6.6, 2.8), iso(6.6, 5.6), iso(3.6, 5.6)], '#f6c6d0');
   poly(c, [iso(3.85, 3.05), iso(6.35, 3.05), iso(6.35, 5.35), iso(3.85, 5.35)], null, '#fff', 2);
   const [cx, cy] = iso(5.1, 4.2);
   ell(c, cx, cy, 30, 15, '#fbdbe2');
 
-  // Các góc để sẵn (chưa có chức năng)
-  for (const s of SPOTS) {
-    if (!s.zone) continue;
-    const z = s.zone;
-    const pts = [iso(z.x, z.y), iso(z.x + z.w, z.y), iso(z.x + z.w, z.y + z.d), iso(z.x, z.y + z.d)];
-    c.globalAlpha = 0.09;
-    poly(c, pts, s.color);
-    c.globalAlpha = 1;
-    c.setLineDash([7, 6]);
-    c.lineDashOffset = -S.t * 8;
-    poly(c, pts, null, s.color, 2);
-    c.setLineDash([]);
-    const [lx, ly] = iso(z.x + z.w / 2, z.y + z.d / 2);
-    c.textAlign = 'center';
-    c.font = '24px system-ui, "Apple Color Emoji", "Segoe UI Emoji", sans-serif';
-    c.fillText(s.icon, lx, ly - 10 + Math.sin(S.t * 2 + lx) * 2);
-    c.font = 'bold 10px system-ui, sans-serif';
-    const text = `${s.title} · Sắp có`;
-    const tw = c.measureText(text).width + 14;
-    rr(c, lx - tw / 2, ly + 2, tw, 17, 8.5, 'rgba(255,255,255,.92)');
-    c.fillStyle = s.color;
-    c.fillText(text, lx, ly + 14);
+  // Thảm góc xem phim
+  poly(c, [iso(6.75, 0.75), iso(9.7, 0.75), iso(9.7, 4.2), iso(6.75, 4.2)], '#3d4a8a');
+  poly(c, [iso(6.95, 0.95), iso(9.5, 0.95), iso(9.5, 4.0), iso(6.95, 4.0)], null, '#7f8be0', 2);
+
+  // Thảm tròn góc âm nhạc, có hoạ tiết nốt nhạc
+  poly(c, floorCircle(8.15, 7.45, 1.25), '#bfe6cf');
+  poly(c, floorCircle(8.15, 7.45, 0.95), null, '#fff', 2);
+  c.fillStyle = 'rgba(31,169,113,.45)';
+  c.font = 'bold 13px system-ui, sans-serif';
+  c.textAlign = 'center';
+  for (const [nx, ny, ch] of [[7.6, 7.9, '♪'], [8.7, 7.95, '♫'], [8.2, 8.35, '♪']]) {
+    const [px, py] = iso(nx, ny);
+    c.fillText(ch, px, py + 4);
   }
 }
 
@@ -344,25 +467,184 @@ function drawPlant(c, S) {
   c.restore();
 }
 
+// ---------- Đồ đạc góc xem phim ----------
+function drawPopcorn(c, x, y, k = 1) {
+  const h = 15 * k;
+  const bw = 5.5 * k;
+  const tw = 8 * k;
+  const body = [[x - bw, y], [x + bw, y], [x + tw, y - h], [x - tw, y - h]];
+  poly(c, body, '#ffffff');
+  for (const t of [-0.62, 0, 0.62]) {
+    poly(c, [[x + t * bw - 1.1 * k, y], [x + t * bw + 1.1 * k, y], [x + t * tw + 1.5 * k, y - h], [x + t * tw - 1.5 * k, y - h]], '#e5484d');
+  }
+  const puffs = [[-5.5, 0, 3.3], [0, -1.5, 3.8], [5.5, 0, 3.3], [-2.8, -4.5, 3.2], [3, -5, 3], [0, -7, 2.6]];
+  puffs.forEach(([px, py, r], i) => ell(c, x + px * k, y - h + py * k, r * k, r * k, i % 2 ? '#ffe7a3' : '#fff7dc'));
+}
+
+function drawTVStand(c, S) {
+  box(c, 7.5, 0, 0, 2, 0.45, 24, '#8a5a3b');
+  // Hai cánh tủ nhìn từ mặt trước
+  wallR(c, 7.5, 0.45, 24, () => {
+    c.strokeStyle = 'rgba(0,0,0,.18)';
+    c.lineWidth = 1;
+    c.strokeRect(3, 4, 28, 16);
+    c.strokeRect(33, 4, 28, 16);
+    ell(c, 29, 12, 1.3, 1.3, '#f5d08a');
+    ell(c, 35, 12, 1.3, 1.3, '#f5d08a');
+  });
+  // Loa thanh và xô bỏng ngô (khi chưa xem)
+  box(c, 8.0, 0.08, 24, 1.0, 0.16, 5, '#2b2f4a');
+  if (!S.tv) {
+    const [px, py] = iso(9.2, 0.25, 24);
+    drawPopcorn(c, px, py, 0.8);
+  }
+}
+
+function drawSofaBack(c) {
+  box(c, 6.9, 1.3, 0, 0.25, 2.6, 44, '#4a54a8');
+}
+
+function drawSofaSeat(c) {
+  box(c, 7.15, 1.3, 0, 0.85, 2.6, 12, '#4a54a8'); // khung
+  box(c, 7.15, 1.5, 12, 0.85, 2.2, SOFA_TOP - 12, '#6f7bd9'); // đệm ngồi
+  box(c, 7.15, 1.3, 12, 0.85, 0.2, 18, '#5b66c4'); // tay vịn xa
+  box(c, 7.15, 3.7, 12, 0.85, 0.2, 18, '#5b66c4'); // tay vịn gần
+  box(c, 7.25, 3.48, SOFA_TOP, 0.5, 0.22, 8, '#ffd65a'); // gối kê đầu
+}
+
+// ---------- Đồ đạc góc âm nhạc ----------
+function drawBenchBack(c) {
+  box(c, 7.2, 6.38, BENCH_TOP - 3, 0.08, 0.07, 26, '#8c5a33');
+  box(c, 8.92, 6.38, BENCH_TOP - 3, 0.08, 0.07, 26, '#8c5a33');
+  box(c, 7.1, 6.38, BENCH_TOP + 9, 2, 0.07, 12, '#b5733f');
+}
+
+function drawBenchSeat(c) {
+  for (const [lx, ly] of [[7.2, 6.5], [8.92, 6.5], [7.2, 6.82], [8.92, 6.82]]) box(c, lx, ly, 0, 0.08, 0.08, BENCH_TOP - 7, '#8c5a33');
+  box(c, 7.1, 6.45, BENCH_TOP - 7, 2, 0.5, 4, '#b5733f');
+  box(c, 7.15, 6.48, BENCH_TOP - 3, 1.9, 0.44, 3, '#e5484d'); // đệm
+}
+
+function drawSpeaker(c, S) {
+  box(c, 9.3, 6.05, 0, 0.45, 0.45, 44, '#2b2f4a');
+  const pulse = S.music ? 1 + Math.abs(Math.sin(S.t * Math.PI * 1.8)) * 0.18 : 1;
+  wallR(c, 9.3, 6.5, 44, () => {
+    ell(c, 7.2, 11, 4 * pulse, 4 * pulse, '#5c6185');
+    ell(c, 7.2, 11, 1.6, 1.6, '#1f2340');
+    ell(c, 7.2, 29, 5.5 * pulse, 5.5 * pulse, '#5c6185');
+    ell(c, 7.2, 29, 2.2, 2.2, '#1f2340');
+  });
+  ell(c, ...iso(9.52, 6.27, 44), 1.4, 1.4, S.music ? '#1fa971' : '#9aa0c8');
+}
+
 // ---------- Nhân vật chibi ----------
+// Đầu vẽ quanh tâm (0, -46). o: độ lệch mặt theo hướng nhìn (3/4).
+function drawHead(c, front, o, S, opts = {}) {
+  ell(c, 0, -46, 17, 16, COL.skin);
+  if (front) {
+    c.fillStyle = COL.hair;
+    c.beginPath();
+    c.ellipse(0, -48, 18, 15, 0, Math.PI, Math.PI * 2);
+    c.quadraticCurveTo(14, -42, 9, -44);
+    c.quadraticCurveTo(4, -40, 0, -44);
+    c.quadraticCurveTo(-6, -40, -10, -44);
+    c.quadraticCurveTo(-15, -41, -18, -48);
+    c.fill();
+    if (opts.mask) {
+      // Bịt mắt có vẽ hai mắt nhắm cười
+      c.fillStyle = '#4b3f8a';
+      c.fillRect(-17, -45, 34, 3);
+      rr(c, -14 + o, -47, 28, 10, 5, '#b9a4ff');
+      c.strokeStyle = '#5a47b0';
+      c.lineWidth = 1.3;
+      c.lineCap = 'round';
+      for (const ex of [-6 + o, 6 + o]) {
+        c.beginPath();
+        c.arc(ex, -43.5, 2.6, 0.15 * Math.PI, 0.85 * Math.PI);
+        c.stroke();
+      }
+    } else if (S.t % 4.2 < 0.13) {
+      c.strokeStyle = '#1f2340';
+      c.lineWidth = 1.6;
+      line(c, [-8 + o, -42], [-3 + o, -42]);
+      line(c, [3 + o, -42], [8 + o, -42]);
+    } else {
+      ell(c, -5.5 + o, -42, 2.4, 3.2, '#1f2340');
+      ell(c, 5.5 + o, -42, 2.4, 3.2, '#1f2340');
+      ell(c, -4.8 + o, -43.3, 0.9, 0.9, '#fff');
+      ell(c, 6.2 + o, -43.3, 0.9, 0.9, '#fff');
+    }
+    ell(c, -10 + o, -36.5, 3, 1.8, 'rgba(255,120,120,.45)');
+    ell(c, 10 + o, -36.5, 3, 1.8, 'rgba(255,120,120,.45)');
+    if (opts.chew > 0) {
+      ell(c, o, -37.5, 2.2, 0.8 + opts.chew * 1.8, '#8a3b3b');
+    } else {
+      c.strokeStyle = '#1f2340';
+      c.lineWidth = 1.4;
+      c.lineCap = 'round';
+      c.beginPath();
+      c.arc(o, -38.5, 2.2, 0.15 * Math.PI, 0.85 * Math.PI);
+      c.stroke();
+    }
+  } else {
+    ell(c, 0, -47, 18, 16.5, COL.hair);
+    ell(c, 0, -34, 9, 4, COL.hair);
+  }
+  if (opts.phones) {
+    // Tai nghe chụp tai
+    c.strokeStyle = '#2b2f4a';
+    c.lineWidth = 4;
+    c.lineCap = 'round';
+    c.beginPath();
+    c.arc(0, -46, 20, Math.PI * 1.1, Math.PI * 1.9);
+    c.stroke();
+    for (const sx of [-1, 1]) {
+      rr(c, sx * 19 - 5, -53, 10, 16, 5, '#e5484d');
+      rr(c, sx > 0 ? 14 : -18, -50, 4, 10, 2, '#ff9a9e'); // đệm tai
+    }
+  }
+}
+
+function drawTag(c, x, y, level) {
+  const text = `Cấp ${level}`;
+  c.font = 'bold 10px system-ui, sans-serif';
+  c.textAlign = 'center';
+  const tw = c.measureText(text).width + 14;
+  rr(c, x - tw / 2, y - 11, tw, 15, 7.5, 'rgba(31,35,64,.78)');
+  c.fillStyle = '#fff';
+  c.fillText(text, x, y);
+}
+
 function drawHero(c, hero, S, level) {
+  if (hero.pose === 'sofa') return drawLying(c, S, level);
   const [sx, sy] = iso(hero.x, hero.y);
   const dx = hero.fx - hero.fy; // hướng nhìn trên màn hình
   const dy = hero.fx + hero.fy;
   const front = dy > 0.01 || (Math.abs(dy) <= 0.01 && dx >= 0);
   const flip = dx < -0.01;
-  const lift = hero.sitting ? 20 : 0;
-  const bob = hero.moving ? -Math.abs(Math.sin(hero.phase)) * 2.5 : Math.sin(S.t * 2.2) * 0.8;
+  const sitting = hero.pose !== 'stand';
+  const music = hero.pose === 'bench';
+  const lift = music ? BENCH_TOP : sitting ? 20 : 0;
+  const beat = music ? Math.abs(Math.sin(S.t * Math.PI * 1.8)) : 0;
+  const bob = hero.moving ? -Math.abs(Math.sin(hero.phase)) * 2.5 : music ? -beat * 1.5 : Math.sin(S.t * 2.2) * 0.8;
   const step = hero.moving ? Math.sin(hero.phase) : 0;
 
   c.save();
   c.translate(sx, sy);
-  ell(c, 0, 0, 13, 5, 'rgba(60,30,0,.18)');
+  if (!sitting) ell(c, 0, 0, 13, 5, 'rgba(60,30,0,.18)');
   if (flip) c.scale(-1, 1);
   c.translate(0, bob - lift);
 
   // Chân
-  if (hero.sitting) {
+  if (music) {
+    // Ngồi quay mặt ra ngoài: đùi ngắn lại, cẳng chân thả xuống sàn, một chân nhịp theo nhạc
+    rr(c, -8, -8, 7, 9, 3, COL.pants);
+    rr(c, 1, -8, 7, 9, 3, COL.pants);
+    rr(c, -7.5, 0, 6, lift - 4 - bob, 3, COL.pants);
+    rr(c, 1.5, 0, 6, lift - 4 - bob, 3, COL.pants);
+    rr(c, -9, lift - 5 - bob, 9, 5, 2, COL.shoe);
+    rr(c, 1, lift - 5 - bob - beat * 2, 9, 5, 2, COL.shoe);
+  } else if (sitting) {
     rr(c, -7, -7, 6, 7, 2, COL.pants);
     rr(c, 1, -7, 6, 7, 2, COL.pants);
   } else {
@@ -382,14 +664,14 @@ function drawHero(c, hero, S, level) {
     c.lineWidth = 2;
     line(c, [-8, -30], [-8, -21]);
     line(c, [8, -30], [8, -21]);
-  } else if (!hero.sitting) {
+  } else if (!sitting) {
     rr(c, -8, -30, 16, 16, 5, COL.bag);
     rr(c, -5, -21, 10, 5, 2, shade(COL.bag, -0.15));
   }
 
   // Tay
   const armCol = shade(COL.shirt, -0.12);
-  if (hero.sitting) {
+  if (sitting && !music) {
     rr(c, -15, -32, 6, 9, 3, armCol);
     rr(c, 9, -32, 6, 9, 3, armCol);
   } else {
@@ -400,52 +682,95 @@ function drawHero(c, hero, S, level) {
     ell(c, 12, -16 - a, 3, 3, COL.skin);
   }
 
-  // Đầu
-  ell(c, 0, -46, 17, 16, COL.skin);
-  if (front) {
-    c.fillStyle = COL.hair;
-    c.beginPath();
-    c.ellipse(0, -48, 18, 15, 0, Math.PI, Math.PI * 2);
-    c.quadraticCurveTo(14, -42, 9, -44);
-    c.quadraticCurveTo(4, -40, 0, -44);
-    c.quadraticCurveTo(-6, -40, -10, -44);
-    c.quadraticCurveTo(-15, -41, -18, -48);
-    c.fill();
-    const o = 1.8; // nghiêng mặt 3/4 về hướng đang nhìn
-    const blink = S.t % 4.2 < 0.13;
-    if (blink) {
-      c.strokeStyle = '#1f2340';
-      c.lineWidth = 1.6;
-      line(c, [-8 + o, -42], [-3 + o, -42]);
-      line(c, [3 + o, -42], [8 + o, -42]);
-    } else {
-      ell(c, -5.5 + o, -42, 2.4, 3.2, '#1f2340');
-      ell(c, 5.5 + o, -42, 2.4, 3.2, '#1f2340');
-      ell(c, -4.8 + o, -43.3, 0.9, 0.9, '#fff');
-      ell(c, 6.2 + o, -43.3, 0.9, 0.9, '#fff');
-    }
-    ell(c, -10 + o, -37, 3, 1.8, 'rgba(255,120,120,.45)');
-    ell(c, 10 + o, -37, 3, 1.8, 'rgba(255,120,120,.45)');
-    c.strokeStyle = '#1f2340';
-    c.lineWidth = 1.4;
-    c.beginPath();
-    c.arc(o, -38.5, 2.2, 0.15 * Math.PI, 0.85 * Math.PI);
-    c.stroke();
-  } else {
-    ell(c, 0, -47, 18, 16.5, COL.hair);
-    ell(c, 0, -34, 9, 4, COL.hair);
+  // Đầu: khi nghe nhạc thì lắc lư theo nhịp
+  c.save();
+  if (music) {
+    c.translate(0, -30);
+    c.rotate(Math.sin(S.t * Math.PI * 0.9) * 0.1);
+    c.translate(0, 30);
   }
+  drawHead(c, front, 1.8, S, { mask: music, phones: music });
+  c.restore();
   c.restore();
 
-  // Bảng tên trên đầu
-  const ty = sy + bob - lift - 72;
-  const text = `Cấp ${level}`;
-  c.font = 'bold 10px system-ui, sans-serif';
+  drawTag(c, sx, sy + bob - lift - (music ? 78 : 72), level);
+}
+
+// Nằm trên sofa, gối đầu lên tay vịn gần, chân duỗi về phía TV, ôm xô bỏng ngô.
+function drawLying(c, S, level) {
+  const P = (y, z) => iso(LIE_X, y, SOFA_TOP + z);
+  const head = P(3.45, 25);
+  const shoulder = P(3.15, 12);
+  const hip = P(2.6, 6);
+  const farKnee = P(2.12, 7);
+  const farFoot = P(1.62, 7);
+  const nearKnee = P(2.18, 17);
+  const nearFoot = P(1.72, 8);
+  const bucket = P(2.85, 9);
+
+  // Chu kỳ ăn bỏng ngô: tay đưa từ xô lên miệng rồi quay lại
+  const p = (S.t % 2.8) / 2.8;
+  const toMouth = p < 0.25 ? p / 0.25 : p < 0.45 ? 1 : p < 0.7 ? 1 - (p - 0.45) / 0.25 : 0;
+  const ease = toMouth * toMouth * (3 - 2 * toMouth);
+  const chew = p > 0.4 && p < 0.85 ? Math.abs(Math.sin(S.t * 14)) : 0;
+  const handFrom = [bucket[0] + 2, bucket[1] - 19];
+  const handTo = [head[0] + 8, head[1] + 9];
+  const hand = [lerp(handFrom[0], handTo[0], ease), lerp(handFrom[1], handTo[1], ease)];
+
+  // Chân xa, tay xa
+  limb(c, hip, farKnee, 9, shade(COL.pants, -0.15));
+  limb(c, farKnee, farFoot, 8, shade(COL.pants, -0.15));
+  rr(c, farFoot[0] - 2, farFoot[1] - 10, 7, 11, 3, COL.shoe);
+  limb(c, [shoulder[0] - 4, shoulder[1] - 2], [bucket[0] - 7, bucket[1] - 10], 6, shade(COL.shirt, -0.25));
+
+  // Thân
+  limb(c, shoulder, hip, 22, COL.shirt);
+  poly(c, [[shoulder[0] - 5, shoulder[1] - 7], [shoulder[0] + 1, shoulder[1] - 2], [shoulder[0] + 4, shoulder[1] - 9]], '#fff');
+
+  // Chân gần co gối
+  limb(c, hip, nearKnee, 9, COL.pants);
+  limb(c, nearKnee, nearFoot, 8, COL.pants);
+  rr(c, nearFoot[0] - 2, nearFoot[1] - 10, 7, 11, 3, COL.shoe);
+
+  // Xô bỏng ngô trên bụng, thỉnh thoảng có hạt nổ bay lên
+  drawPopcorn(c, bucket[0], bucket[1]);
+  const pop = (S.t % 3.7) / 0.7;
+  if (pop < 1) {
+    const px = bucket[0] + pop * 10;
+    const py = bucket[1] - 20 - Math.sin(pop * Math.PI) * 14;
+    ell(c, px, py, 2.4, 2.4, '#fff7dc');
+  }
+
+  // Đầu ngẩng nhìn về phía TV
+  c.save();
+  c.translate(head[0], head[1] + 46);
+  c.rotate(-0.12);
+  drawHead(c, true, 5, S, { chew });
+  c.restore();
+
+  // Tay gần đưa bỏng ngô lên miệng
+  limb(c, [shoulder[0] + 3, shoulder[1] - 3], hand, 6, shade(COL.shirt, -0.12));
+  ell(c, hand[0], hand[1], 3.4, 3.4, COL.skin);
+  if (ease > 0.05 && p < 0.45) ell(c, hand[0] + 1, hand[1] - 3, 2.3, 2.3, '#fff7dc');
+
+  drawTag(c, head[0], head[1] - 26, level);
+}
+
+// Nốt nhạc bay lên từ tai nghe
+function drawNotes(c, hero, S) {
+  const [sx, sy] = iso(hero.x, hero.y);
+  const headY = sy - BENCH_TOP - 46;
+  const cols = ['#5b5bf0', '#e5484d', '#1fa971', '#f5a524'];
   c.textAlign = 'center';
-  const tw = c.measureText(text).width + 14;
-  rr(c, sx - tw / 2, ty - 11, tw, 15, 7.5, 'rgba(31,35,64,.78)');
-  c.fillStyle = '#fff';
-  c.fillText(text, sx, ty);
+  for (let i = 0; i < 4; i++) {
+    const k = (S.t * 0.45 + i / 4) % 1;
+    const side = i % 2 ? 1 : -1;
+    c.globalAlpha = Math.min(1, (1 - k) * 1.6, k * 6);
+    c.fillStyle = cols[i];
+    c.font = `bold ${12 + k * 6}px system-ui, sans-serif`;
+    c.fillText(i % 2 ? '♫' : '♪', sx + side * (24 + k * 12) + Math.sin(k * 7 + i) * 4, headY - 4 - k * 48);
+  }
+  c.globalAlpha = 1;
 }
 
 // Vật nào nằm sau (vẽ trước). a, b có dạng {x, y, w, d, bias}
@@ -463,6 +788,12 @@ const OBJECTS = [
   { x: 0, y: 2.2, w: 0.6, d: 1.8, draw: drawShelf },
   { x: 0, y: 5.9, w: 1.8, d: 3.1, draw: drawBed },
   { x: 0.1, y: 0.1, w: 0.7, d: 0.7, draw: drawPlant },
+  { x: 7.5, y: 0, w: 2, d: 0.45, draw: drawTVStand },
+  { x: 6.9, y: 1.3, w: 0.25, d: 2.6, draw: drawSofaBack },
+  { x: 7.15, y: 1.3, w: 0.85, d: 2.6, bias: -1, draw: drawSofaSeat },
+  { x: 7.1, y: 6.38, w: 2, d: 0.07, draw: drawBenchBack },
+  { x: 7.1, y: 6.45, w: 2, d: 0.5, bias: -1, draw: drawBenchSeat },
+  { x: 9.3, y: 6.05, w: 0.45, d: 0.45, draw: drawSpeaker },
 ];
 
 // ---------- Va chạm và tìm đường ----------
@@ -579,7 +910,13 @@ function inPoly(x, y, pts) {
   return inside;
 }
 
-const DESK_HULL = hullOf(1, 0, 2.2, 1.9, 80); // bàn + ghế + đèn
+// Bấm vào đồ vật nào thì đi tới chỗ tương ứng
+const HITS = [
+  { hull: hullOf(1, 0, 2.2, 1.9, 80), spot: DESK }, // bàn + ghế + đèn
+  { hull: hullOf(7.1, 6.0, 2.65, 0.95, 46), spot: MUSIC }, // ghế dài + loa
+  { hull: hullOf(6.9, 1.3, 1.1, 2.6, 46), spot: MOVIE }, // sofa
+  { hull: hullOf(7.45, 0, 2.05, 0.45, TV.zTop + 4), spot: MOVIE }, // TV + kệ
+];
 const inRect = (x, y, z) => x >= z.x && y >= z.y && x <= z.x + z.w && y <= z.y + z.d;
 
 // ---------- Màn phòng ----------
@@ -587,14 +924,14 @@ export function renderClassroom(root, onSit) {
   root.innerHTML = `
     <div class="room-wrap">
       <div class="scene" id="scene">
-        <canvas aria-label="Phòng học của bạn. Bấm vào sàn để đi lại, đến bàn học để mở menu."></canvas>
-        <div class="room-intro" id="intro">👋 Bấm vào sàn để đi lại, rồi đến bàn học để bắt đầu</div>
+        <canvas aria-label="Phòng của bạn. Bấm vào sàn để đi lại. Có bàn học, góc âm nhạc và góc xem phim."></canvas>
+        <div class="room-intro" id="intro">👋 Bấm vào sàn để đi lại. Ghé bàn học, góc âm nhạc hoặc sofa xem phim nhé!</div>
         <button class="act-btn" id="act" hidden></button>
         <div class="room-toast hide" id="toast"></div>
         <div class="scene-fade"></div>
       </div>
-      <p class="room-hint">Di chuyển: bấm vào sàn, hoặc phím mũi tên / WASD. Lại gần bàn học rồi bấm <b>🪑 Ngồi học</b> (hoặc phím E / Enter).
-        <button class="link" id="skip">Bỏ qua</button></p>
+      <p class="room-hint">Di chuyển: bấm vào sàn, hoặc phím mũi tên / WASD. Lại gần đồ vật rồi bấm nút hiện ra (hoặc phím E).
+        Bàn học mở menu. <button class="link" id="skip">Bỏ qua</button></p>
     </div>`;
 
   const scene = root.querySelector('#scene');
@@ -606,8 +943,9 @@ export function renderClassroom(root, onSit) {
   const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   const level = levelInfo().level;
 
-  const hero = { x: 5.2, y: 4.3, fx: 1, fy: 1, moving: false, phase: 0, sitting: false };
-  const S = { t: 0, lampOn: false };
+  // pose: 'stand' | 'desk' (ngồi học) | 'bench' (nghe nhạc) | 'sofa' (xem phim)
+  const hero = { x: 5.2, y: 4.3, fx: 1, fy: 1, moving: false, phase: 0, pose: 'stand' };
+  const S = { t: 0, lampOn: false, music: false, tv: false, tvT0: 0 };
   const cam = { zoom: 1, fx: 0, fy: 0, ready: false };
   const keys = new Set();
   const timers = [];
@@ -615,7 +953,8 @@ export function renderClassroom(root, onSit) {
   let pending = null;
   let marker = null;
   let shownSpot = undefined;
-  let seated = false;
+  let lounge = null; // chỗ đang ngồi / nằm (MUSIC hoặc MOVIE)
+  let seated = false; // đã ngồi vào bàn học, đang chuyển sang menu
   let zoomAnim = null;
   let vw = 0;
   let vh = 0;
@@ -654,11 +993,11 @@ export function renderClassroom(root, onSit) {
     toastEl.textContent = msg;
     toastEl.classList.remove('hide');
     clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => toastEl.classList.add('hide'), 2000);
+    toastTimer = setTimeout(() => toastEl.classList.add('hide'), 2400);
   }
 
   function walkTo(x, y, spot) {
-    const p = findPath(hero, { x, y }, !!spot);
+    const p = findPath(hero, { x, y }, spot === DESK);
     pending = spot || null;
     path = p && p.length ? p : null;
     if (!path && pending) doAction(pending);
@@ -666,21 +1005,46 @@ export function renderClassroom(root, onSit) {
 
   function doAction(spot) {
     if (spot.action === 'sit') sit();
-    else toast(spot.msg);
+    else if (spot.action === 'lounge') enterLounge(spot);
   }
 
   function act(spot) {
     if (seated || !spot) return;
+    if (spot.action === 'stand') return standUp();
+    if (lounge) standUp();
     if (spot.action === 'sit') walkTo(spot.x, spot.y, spot);
-    else toast(spot.msg);
+    else walkTo(spot.exit.x, spot.exit.y, spot); // tới trước ghế rồi mới ngồi / nằm
   }
 
   function nearSpot() {
     if (seated) return null;
+    if (lounge) return STAND;
     for (const s of SPOTS) {
       if (s.zone ? inRect(hero.x, hero.y, s.zone) : Math.hypot(hero.x - s.x, hero.y - s.y) < s.near) return s;
     }
     return null;
+  }
+
+  function enterLounge(spot) {
+    lounge = spot;
+    path = null;
+    pending = null;
+    Object.assign(hero, { x: spot.seat.x, y: spot.seat.y, fx: spot.seat.fx, fy: spot.seat.fy, pose: spot.pose, moving: false });
+    if (spot === MUSIC) S.music = true;
+    if (spot === MOVIE) {
+      S.tv = true;
+      S.tvT0 = S.t;
+    }
+    toast(spot.msg);
+  }
+
+  function standUp() {
+    if (!lounge) return;
+    const spot = lounge;
+    lounge = null;
+    S.music = false;
+    S.tv = false;
+    Object.assign(hero, { x: spot.exit.x, y: spot.exit.y, fx: 1, fy: 1, pose: 'stand' });
   }
 
   function sit() {
@@ -689,7 +1053,7 @@ export function renderClassroom(root, onSit) {
     path = null;
     pending = null;
     keys.clear();
-    Object.assign(hero, { x: DESK.x, y: DESK.y, fx: 0, fy: -1, sitting: true, moving: false });
+    Object.assign(hero, { x: DESK.x, y: DESK.y, fx: 0, fy: -1, pose: 'desk', moving: false });
     hideIntro();
     if (reduceMotion) return at(300, onSit);
     at(450, () => (S.lampOn = true));
@@ -712,6 +1076,7 @@ export function renderClassroom(root, onSit) {
     if (keys.has('left')) { kx -= 1; ky += 1; }
     if (keys.has('right')) { kx += 1; ky -= 1; }
     if (kx || ky) {
+      if (lounge) standUp();
       path = null;
       pending = null;
       const l = Math.hypot(kx, ky);
@@ -786,11 +1151,11 @@ export function renderClassroom(root, onSit) {
       actBtn.hidden = !spot;
       if (spot) {
         actBtn.textContent = spot.label;
-        actBtn.classList.toggle('soon', !!spot.soon);
+        actBtn.classList.toggle('stand', spot === STAND);
       }
     }
     if (spot) {
-      const [sx, sy] = toScreen(...iso(...spot.btn));
+      const [sx, sy] = toScreen(...iso(...(spot === STAND ? lounge.standBtn : spot.btn)));
       actBtn.style.left = sx + 'px';
       actBtn.style.top = sy + 'px';
     }
@@ -804,7 +1169,7 @@ export function renderClassroom(root, onSit) {
     ctx.setTransform(dpr * s, 0, 0, dpr * s, dpr * (vw / 2 - cam.fx * s), dpr * (vh / 2 - cam.fy * s));
 
     drawRoom(ctx, S);
-    drawFloorDecor(ctx, S);
+    drawFloorDecor(ctx);
 
     if (marker) {
       const k = (S.t - marker.t0) / 0.7;
@@ -821,23 +1186,45 @@ export function renderClassroom(root, onSit) {
     }
 
     const items = OBJECTS.slice();
-    items.push({ x: hero.x - 0.2, y: hero.y - 0.2, w: 0.4, d: 0.4, draw: (c) => drawHero(c, hero, S, level) });
+    const heroBox = hero.pose === 'sofa' ? { x: 7.15, y: 1.5, w: 0.85, d: 2.2 } : { x: hero.x - 0.2, y: hero.y - 0.2, w: 0.4, d: 0.4 };
+    items.push({ ...heroBox, draw: (c) => drawHero(c, hero, S, level) });
     items.sort(depthOrder).forEach((it) => it.draw(ctx, S));
 
-    if (S.lampOn) {
+    const dim = (alpha) => {
       ctx.save();
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      ctx.fillStyle = 'rgba(27,20,64,.3)';
+      ctx.fillStyle = `rgba(20,16,56,${alpha})`;
       ctx.fillRect(0, 0, vw, vh);
       ctx.restore();
-      const [gx, gy] = iso(2.2, 0.6, 40);
-      const g = ctx.createRadialGradient(gx, gy, 0, gx, gy, 95);
-      g.addColorStop(0, 'rgba(255,220,120,.55)');
-      g.addColorStop(1, 'rgba(255,220,120,0)');
+    };
+    const glow = (x, y, r, rgb, a) => {
+      const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+      g.addColorStop(0, `rgba(${rgb},${a})`);
+      g.addColorStop(1, `rgba(${rgb},0)`);
       ctx.globalCompositeOperation = 'lighter';
-      ell(ctx, gx, gy, 95, 95, g);
+      ell(ctx, x, y, r, r, g);
       ctx.globalCompositeOperation = 'source-over';
+    };
+
+    if (S.lampOn) {
+      dim(0.3);
+      const [gx, gy] = iso(2.2, 0.6, 40);
+      glow(gx, gy, 95, '255,220,120', 0.55);
     }
+
+    if (S.tv) {
+      // Tắt bớt đèn phòng, ánh sáng TV đổi màu theo cảnh phim
+      dim(0.38);
+      const hex = SHOW_GLOW[Math.floor((S.t - S.tvT0) / 5) % 3];
+      const rgb = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16)).join(',');
+      const flick = 0.42 + Math.sin(S.t * 9) * 0.04;
+      const [tx, ty] = iso(TV.x + 1, 0, TV.zTop - 20);
+      glow(tx, ty + 20, 120, rgb, flick);
+      glow(...iso(LIE_X, 2.6, 30), 70, rgb, flick * 0.6);
+      drawTV(ctx, S); // vẽ lại màn hình cho sáng rõ
+    }
+
+    if (S.music) drawNotes(ctx, hero, S);
   }
 
   function frame(now) {
@@ -884,10 +1271,15 @@ export function renderClassroom(root, onSit) {
     if (seated) return;
     hideIntro();
     const [wx, wy] = toWorld(e.clientX, e.clientY);
-    if (inPoly(wx, wy, DESK_HULL)) return walkTo(DESK.x, DESK.y, DESK);
+    const hit = HITS.find((h) => inPoly(wx, wy, h.hull));
+    if (hit) {
+      if (hit.spot !== lounge) act(hit.spot); // bấm lại đúng chỗ đang ngồi thì không làm gì
+      return;
+    }
     const gx = (wx / HW + wy / HH) / 2;
     const gy = (wy / HH - wx / HW) / 2;
     if (gx < 0 || gy < 0 || gx > W || gy > H) return;
+    if (lounge) standUp();
     marker = { x: gx, y: gy, t0: S.t };
     walkTo(gx, gy, null);
   }
@@ -908,8 +1300,8 @@ export function renderClassroom(root, onSit) {
   const ro = new ResizeObserver(layout);
   ro.observe(scene);
 
-  // Dùng cho kiểm thử tự động: đổi toạ độ ô sang toạ độ màn hình và đọc vị trí nhân vật.
-  scene._room = { hero, toScreen: (x, y, z = 0) => toScreen(...iso(x, y, z)) };
+  // Dùng cho kiểm thử tự động: đổi toạ độ ô sang toạ độ màn hình, đọc trạng thái nhân vật.
+  scene._room = { hero, S, cam, toScreen: (x, y, z = 0) => toScreen(...iso(x, y, z)) };
 
   layout();
   raf = requestAnimationFrame(frame);

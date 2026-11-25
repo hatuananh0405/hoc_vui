@@ -15,7 +15,10 @@ Mở app sẽ vào phòng riêng nhìn chéo từ trên cao (isometric 2.5D), c�
 
 - **Di chuyển**: bấm hoặc chạm vào sàn, nhân vật tự tìm đường và đi vòng qua đồ đạc. Trên máy tính dùng được phím mũi tên hoặc WASD.
 - **Ngồi học**: lại gần bàn học thì hiện nút **🪑 Ngồi học**. Bấm nút đó, bấm thẳng vào bàn, hoặc nhấn E / Enter: nhân vật ngồi xuống, đèn bàn bật, camera phóng vào bàn rồi mở menu.
-- **Góc xem phim** và **góc nghe nhạc** mới để sẵn chỗ, đi vào sẽ báo "Sắp có".
+- **Góc âm nhạc** (phía trước bên phải): ghế dài, loa và thảm tròn. Bấm ghế hoặc nút **🎧 Nghe nhạc**: nhân vật ngồi xuống, đeo tai nghe chụp tai và bịt mắt, lắc lư theo nhịp. Nốt nhạc bay lên, loa rung theo.
+- **Góc xem phim** (sát tường bên phải): sofa, TV treo tường và kệ TV. Bấm sofa, TV hoặc nút **🍿 Xem phim**: nhân vật nằm trên sofa, ăn bỏng ngô. TV bật và chiếu 3 cảnh hoạt hình luân phiên, đèn phòng tối đi, ánh TV đổi màu theo cảnh.
+- Đang ngồi hoặc nằm: bấm **⬆️ Đứng dậy**, nhấn E, bấm vào sàn hoặc nhấn phím di chuyển để đứng lên.
+- Hiện chưa phát nhạc hay phim thật, mới có hoạt ảnh.
 - Nút "Bỏ qua" vào menu ngay. Nút 🏫 trên thanh trên cùng đưa về lại phòng.
 - Trên điện thoại, camera phóng gần hơn và bám theo nhân vật.
 
