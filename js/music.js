@@ -176,18 +176,25 @@ const MAX_SKIPS = 8;
 // Chỉ gửi origin khi chạy trên web thật; mở file trên máy thì không có origin.
 const pageOrigin = () => (/^https?:$/.test(location.protocol) ? location.origin : null);
 
-function ytPlayerVars(link) {
+function ytBaseVars() {
   const vars = { autoplay: 1, playsinline: 1, rel: 0 };
   const origin = pageOrigin();
   if (origin) {
     vars.origin = origin;
     vars.widget_referrer = location.href;
   }
-  if (link.listId) {
-    vars.listType = 'playlist';
-    vars.list = link.listId;
-  }
   return vars;
+}
+
+// Các cách khởi tạo trình phát, thử lần lượt cho đến khi YouTube chấp nhận một cách.
+// Link Mix có cả ID bài và ID danh sách: thử gửi cả hai, rồi chỉ danh sách, rồi chỉ bài.
+function ytConfigs(link) {
+  const withList = { ...ytBaseVars(), listType: 'playlist', list: link.listId };
+  const configs = [];
+  if (link.videoId && link.listId) configs.push({ videoId: link.videoId, playerVars: withList });
+  if (link.listId) configs.push({ playerVars: withList });
+  if (link.videoId) configs.push({ videoId: link.videoId, playerVars: ytBaseVars() });
+  return configs;
 }
 
 // Gắn trình phát vào host. events:
@@ -195,14 +202,17 @@ function ytPlayerVars(link) {
 // Trả về hàm dừng / gỡ trình phát.
 function mountPlayer(host, link, events) {
   const state = { dead: false, destroy: () => {}, timer: 0 };
-  const box = document.createElement('div');
-  host.replaceChildren(box);
+  const newBox = () => {
+    const box = document.createElement('div');
+    host.replaceChildren(box);
+    return box;
+  };
   events.onStatus('Đang tải trình phát...');
 
   const fallback = (src, title, err, name) => {
     if (state.dead) return;
     console.warn('[HọcVui] Dùng trình phát dự phòng:', err);
-    box.replaceWith(frame(src, title));
+    host.replaceChildren(frame(src, title));
     events.onPlaying(null);
     events.onStatus(`Đang dùng trình phát dự phòng. ${fallbackReason(err, name)} ${PRESS_PLAY}`);
     events.onFallback?.();
@@ -210,13 +220,13 @@ function mountPlayer(host, link, events) {
 
   if (link.kind === 'youtube') {
     loadYouTube()
-      .then((YT) => mountYouTube(YT, box, link, events, state))
+      .then((YT) => mountYouTube(YT, newBox, link, events, state))
       .catch((err) => fallback(youtubeEmbedSrc(link), 'Trình phát YouTube', err, 'YouTube'));
   } else {
     const height = link.type === 'track' || link.type === 'episode' ? 152 : 352;
     host.style.setProperty('--mp-h', height + 'px');
     loadSpotify()
-      .then((api) => mountSpotify(api, box, link, height, events, state))
+      .then((api) => mountSpotify(api, newBox(), link, height, events, state))
       .catch((err) => fallback(`https://open.spotify.com/embed/${link.type}/${link.id}`, 'Trình phát Spotify', err, 'Spotify'));
   }
 
@@ -233,7 +243,24 @@ function mountPlayer(host, link, events) {
   };
 }
 
-function mountYouTube(YT, box, link, events, state) {
+// Tạo trình phát YouTube, thử từng cấu hình. Mỗi lần thử dùng một khung mới vì
+// lần thử trước có thể đã làm hỏng khung cũ. Nếu tất cả đều bị từ chối thì ném lỗi
+// kèm ID đã gửi để dễ tìm nguyên nhân.
+function createYouTubePlayer(YT, newBox, link, handlers) {
+  let lastErr = null;
+  for (const cfg of ytConfigs(link)) {
+    try {
+      return new YT.Player(newBox(), { width: '100%', height: '100%', ...cfg, events: handlers });
+    } catch (err) {
+      lastErr = err;
+      console.warn('[HọcVui] YouTube từ chối cấu hình', cfg, err);
+    }
+  }
+  const ids = `bài: ${link.videoId ?? 'không có'}, danh sách: ${link.listId ?? 'không có'}`;
+  throw new Error(`${lastErr?.message ?? 'không rõ'} (${ids})`);
+}
+
+function mountYouTube(YT, newBox, link, events, state) {
   if (state.dead) return;
   const S = YT.PlayerState;
   let ended = false;
@@ -276,19 +303,13 @@ function mountYouTube(YT, box, link, events, state) {
     }
     events.onError(msg);
   };
-  const player = new YT.Player(box, {
-    width: '100%',
-    height: '100%',
-    videoId: link.videoId || undefined,
-    playerVars: ytPlayerVars(link),
-    events: {
-      onReady: () => {
-        events.onStatus('Trình phát đã sẵn sàng.');
-        state.timer = setTimeout(() => events.onStatus(PRESS_PLAY), 2500);
-      },
-      onStateChange: (e) => onState(player, e),
-      onError: (e) => onError(player, e),
+  const player = createYouTubePlayer(YT, newBox, link, {
+    onReady: () => {
+      events.onStatus('Trình phát đã sẵn sàng.');
+      state.timer = setTimeout(() => events.onStatus(PRESS_PLAY), 2500);
     },
+    onStateChange: (e) => onState(player, e),
+    onError: (e) => onError(player, e),
   });
   state.destroy = () => {
     player.destroy?.();
