@@ -176,6 +176,9 @@ const MAX_SKIPS = 8;
 const END_GRACE_MS = 3000;
 // Bấm Bài tiếp / Bài trước mà YouTube không đổi bài trong chừng này thì chuyển link của app.
 const NAV_WAIT_MS = 2500;
+const LIST_END =
+  'YouTube không cho chuyển tiếp trong danh sách này (đã hết số bài mà trình phát nhúng cho phép). ' +
+  'Bấm "Mở trên YouTube ↗" để nghe tiếp, hoặc thêm từng bài vào playlist của app.';
 const MIX_SINGLE =
   'YouTube từ chối mở danh sách này trong trình phát nhúng, nên chỉ phát được bài đầu. ' +
   'Muốn nghe nhiều bài, hãy thêm từng bài vào playlist của app, hoặc dùng playlist thường của YouTube.';
@@ -288,6 +291,12 @@ function mountYouTube(YT, newBox, link, events, state) {
     ended = true;
     events.onEnded();
   };
+  const playingLabel = (player) => {
+    const { list, idx } = playlistPos(player);
+    const title = player.getVideoData?.()?.title;
+    const pos = full && list.length > 1 ? ` (bài ${idx + 1}/${list.length} của danh sách YouTube)` : '';
+    return `Đang phát${title ? ': ' + title : ''}${pos}`;
+  };
   const onState = (player, e) => {
     clearTimeout(state.timer);
     clearTimeout(state.endTimer);
@@ -295,7 +304,7 @@ function mountYouTube(YT, newBox, link, events, state) {
     if (e.data === S.PLAYING) {
       skips = 0;
       events.onPlaying(true);
-      events.onStatus('Đang phát');
+      events.onStatus(playingLabel(player));
     } else if (e.data === S.BUFFERING) events.onStatus('Đang tải bài...');
     else if (e.data === S.PAUSED) {
       events.onPlaying(false);
@@ -503,7 +512,7 @@ export function createMusicPanel(root, { onPlaying = () => {} } = {}) {
         if (!gone) showMsg(text);
       },
       onNavFail: (dir) => {
-        if (!gone) step(dir);
+        if (!gone) go(dir, 'list');
       },
       onError: (msg) => {
         if (gone) return;
@@ -529,7 +538,20 @@ export function createMusicPanel(root, { onPlaying = () => {} } = {}) {
   // không được thì mới sang link khác của app.
   function navOrStep(d) {
     if (unmount?.nav?.(d)) return;
-    step(d);
+    go(d, 'link');
+  }
+
+  // Chuyển sang link kế / trước của playlist trong app. Hết đường thì báo, không quay vòng:
+  // quay vòng với playlist chỉ có một link sẽ nạp lại đúng bài đầu.
+  function go(d, what) {
+    const p = current && store.getPlaylist(current.pid);
+    const target = current ? current.index + d : -1;
+    if (p && target >= 0 && target < p.items.length) {
+      step(d);
+      return;
+    }
+    if (what === 'list') showMsg(d > 0 ? LIST_END : 'Đây là bài đầu của danh sách YouTube.');
+    else showMsg(d > 0 ? 'Đã là link cuối của playlist.' : 'Đây là link đầu của playlist.');
   }
 
   function step(d) {
