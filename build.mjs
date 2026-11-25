@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 const root = path.dirname(new URL(import.meta.url).pathname);
-const order = ['util', 'store', 'parser', 'sample', 'games', 'classroom', 'main'];
+const order = ['util', 'store', 'parser', 'sample', 'games', 'music', 'classroom', 'main'];
 const read = (p) => fs.readFileSync(path.join(root, p), 'utf8');
 
 function wrap(name) {

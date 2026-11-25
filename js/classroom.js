@@ -2,9 +2,11 @@
 // Nhân vật đi lại bằng cách bấm vào sàn hoặc dùng phím mũi tên / WASD.
 // - Bàn học: ngồi xuống, bật đèn, camera phóng vào bàn rồi mở menu.
 // - Góc âm nhạc: ngả lưng trên ghế bãi biển, đeo tai nghe chụp và bịt mắt, lắc lư theo nhạc.
+//   Khi ngồi, bảng nhạc hiện ra bên dưới để phát playlist Spotify / YouTube (xem music.js).
 // - Góc xem phim: nằm nghiêng chống tay trên sofa song song với TV, ăn bỏng ngô.
 // Trả về cleanup() để dọn vòng lặp vẽ, timer và phím tắt.
 import { levelInfo } from './store.js';
+import { createMusicPanel } from './music.js';
 
 // ---------- Kích thước thế giới ----------
 const HW = 32; // nửa chiều rộng một ô trên màn hình (px)
@@ -54,7 +56,7 @@ const MUSIC = {
   zone: { x: 6.4, y: 5.6, w: 3.4, d: 3.2 },
   seat: { x: CHAIR_X, y: 6.9, fx: 0, fy: 1 }, exit: { x: CHAIR_X, y: 7.95 },
   btn: [CHAIR_X, 6.7, 62], standBtn: [CHAIR_X, 6.36, 122],
-  msg: '🏖️ Ngả lưng trên ghế bãi biển, đeo tai nghe thư giãn...',
+  msg: '🏖️ Chọn playlist bên dưới để phát nhạc nhé!',
 };
 const MOVIE = {
   id: 'movie', label: '🍿 Xem phim', action: 'lounge', pose: 'sofa',
@@ -582,7 +584,7 @@ function drawRadio(c, S) {
   c.moveTo(hx - 8, hy);
   c.quadraticCurveTo(hx, hy - 10, hx + 8, hy);
   c.stroke();
-  const pulse = S.music ? 1 + Math.abs(Math.sin(S.t * Math.PI * 1.8)) * 0.22 : 1;
+  const pulse = musicOn(S) ? 1 + Math.abs(Math.sin(S.t * Math.PI * 1.8)) * 0.22 : 1;
   wallR(c, 8.65, 7.4, 15, () => {
     for (const cx of [3.6, 10.8]) {
       ell(c, cx, 7.5, 3.2 * pulse, 3.2 * pulse, '#2b2f4a');
@@ -754,6 +756,9 @@ function drawHero(c, hero, S, level) {
 
   drawTag(c, sx, sy + bob - lift - 72, level);
 }
+
+// Có nhạc đang phát không. playing = null: trình phát không báo trạng thái, coi như đang phát.
+const musicOn = (S) => S.music && S.playing !== false;
 
 // Đầu nghe nhạc trên ghế bãi biển (dùng cho nốt nhạc bay lên)
 const beachHead = (S) => iso(CHAIR_X, 6.36, 49 - Math.abs(Math.sin(S.t * Math.PI * 1.8)) * 1.2);
@@ -1049,6 +1054,7 @@ export function renderClassroom(root, onSit) {
         <div class="room-toast hide" id="toast"></div>
         <div class="scene-fade"></div>
       </div>
+      <div class="music-panel card" id="music" hidden></div>
       <p class="room-hint">Di chuyển: bấm vào sàn, hoặc phím mũi tên / WASD. Lại gần đồ vật rồi bấm nút hiện ra (hoặc phím E).
         Bàn học mở menu. <button class="link" id="skip">Bỏ qua</button></p>
     </div>`;
@@ -1064,7 +1070,7 @@ export function renderClassroom(root, onSit) {
 
   // pose: 'stand' | 'desk' (ngồi học) | 'bench' (nghe nhạc) | 'sofa' (xem phim)
   const hero = { x: 5.2, y: 4.3, fx: 1, fy: 1, moving: false, phase: 0, pose: 'stand' };
-  const S = { t: 0, lampOn: false, music: false, tv: false, tvT0: 0 };
+  const S = { t: 0, lampOn: false, music: false, playing: false, tv: false, tvT0: 0 };
   const cam = { zoom: 1, fx: 0, fy: 0, ready: false };
   const keys = new Set();
   const timers = [];
@@ -1082,6 +1088,8 @@ export function renderClassroom(root, onSit) {
   let raf = 0;
   let last = performance.now();
   let toastTimer = 0;
+  let musicPanel = null;
+  const musicEl = root.querySelector('#music');
 
   const at = (ms, fn) => timers.push(setTimeout(fn, ms));
 
@@ -1149,7 +1157,12 @@ export function renderClassroom(root, onSit) {
     path = null;
     pending = null;
     Object.assign(hero, { x: spot.seat.x, y: spot.seat.y, fx: spot.seat.fx, fy: spot.seat.fy, pose: spot.pose, moving: false });
-    if (spot === MUSIC) S.music = true;
+    if (spot === MUSIC) {
+      S.music = true;
+      S.playing = false;
+      musicPanel = createMusicPanel(musicEl, { onPlaying: (v) => (S.playing = v) });
+      musicEl.scrollIntoView?.({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'nearest' });
+    }
     if (spot === MOVIE) {
       S.tv = true;
       S.tvT0 = S.t;
@@ -1161,9 +1174,16 @@ export function renderClassroom(root, onSit) {
     if (!lounge) return;
     const spot = lounge;
     lounge = null;
+    closeMusic();
     S.music = false;
     S.tv = false;
     Object.assign(hero, { x: spot.exit.x, y: spot.exit.y, fx: 1, fy: 1, pose: 'stand' });
+  }
+
+  function closeMusic() {
+    musicPanel?.destroy();
+    musicPanel = null;
+    S.playing = false;
   }
 
   function sit() {
@@ -1342,7 +1362,7 @@ export function renderClassroom(root, onSit) {
       drawTV(ctx, S); // vẽ lại màn hình cho sáng rõ
     }
 
-    if (S.music) drawNotes(ctx, S);
+    if (musicOn(S)) drawNotes(ctx, S);
   }
 
   function frame(now) {
@@ -1426,6 +1446,7 @@ export function renderClassroom(root, onSit) {
 
   return () => {
     cancelAnimationFrame(raf);
+    closeMusic();
     timers.forEach(clearTimeout);
     clearTimeout(toastTimer);
     ro.disconnect();
