@@ -39,6 +39,7 @@ code { background: #eceefb; padding: 1px 6px; border-radius: 6px; font-size: .9e
   padding: 10px 16px; background: rgba(255,255,255,.92); backdrop-filter: blur(8px);
   border-bottom: 1px solid var(--border);
 }
+.logo, .chip, .me small { white-space: nowrap; }
 .logo { background: none; border: 0; font-size: 1.2rem; font-weight: 800; color: var(--primary); cursor: pointer; }
 .me { display: flex; align-items: center; gap: 8px; }
 .me small { color: var(--muted); }
@@ -165,6 +166,111 @@ textarea { resize: vertical; font-family: ui-monospace, Menlo, Consolas, monospa
 @media (max-width: 560px) {
   h1 { font-size: 1.4rem; }
   .xp { display: none; }
+  .top .label { display: none; }
+  .me { gap: 6px; }
   .match { gap: 8px; }
   .tile { font-size: .9rem; padding: 10px; }
+}
+
+/* ================= Phòng học (màn mở đầu) ================= */
+.room-wrap { max-width: 860px; margin: 0 auto; }
+.scene {
+  position: relative; overflow: hidden; border-radius: 20px; background: #fdf3e1;
+  box-shadow: 0 10px 30px rgba(40, 40, 100, .15); outline: none; user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.scene:focus-visible { box-shadow: 0 0 0 4px rgba(91, 91, 240, .45); }
+.room { display: block; width: 100%; height: auto; transition: transform .9s cubic-bezier(.6, 0, .3, 1); }
+.scene-fade { position: absolute; inset: 0; background: var(--bg); opacity: 0; pointer-events: none; transition: opacity .4s; }
+.room-hint { text-align: center; color: var(--muted); margin-top: 14px; }
+
+.scene .hit { cursor: pointer; }
+.scene.busy .hit { cursor: default; }
+.scene:not(.busy) .desk { animation: desk-glow 2s ease-in-out infinite; }
+.scene:not(.busy) .hit:hover { filter: drop-shadow(0 0 8px rgba(255, 200, 60, .95)); animation: none; }
+@keyframes desk-glow {
+  0%, 100% { filter: drop-shadow(0 0 0 rgba(255, 200, 60, 0)); }
+  50% { filter: drop-shadow(0 0 7px rgba(255, 200, 60, .85)); }
+}
+
+/* Bảng đen: chữ phấn tự viết */
+.chalk { fill: transparent; stroke: #f4f1e8; stroke-width: 1.1; stroke-dasharray: 420; stroke-dashoffset: 420;
+  font-family: 'Comic Sans MS', 'Segoe Print', 'Chalkboard SE', cursive; animation: chalk-write 2.4s .3s forwards; }
+.chalk.big { font-size: 50px; font-weight: 700; }
+.chalk.small { font-size: 22px; animation-delay: 1.4s; }
+.chalk.tiny { font-size: 15px; animation-delay: 2.2s; opacity: .8; }
+@keyframes chalk-write {
+  70% { stroke-dashoffset: 0; fill: transparent; }
+  100% { stroke-dashoffset: 0; fill: #f4f1e8; }
+}
+
+/* Cửa sổ, đồng hồ, cây */
+.cloud { animation: drift 26s linear infinite; }
+.cloud.c2 { animation-duration: 34s; animation-delay: -15s; }
+@keyframes drift { from { transform: translateX(0); } to { transform: translateX(270px); } }
+.sun { transform-box: fill-box; transform-origin: center; animation: sun-pulse 4s ease-in-out infinite; }
+@keyframes sun-pulse { 50% { transform: scale(1.12); } }
+.hand { transform-box: view-box; transform-origin: 480px 110px; }
+.hand.sec { animation: spin 60s steps(60) infinite; }
+.hand.min { animation: spin 3600s linear infinite; }
+.hand.hour { transform: rotate(-60deg); }
+@keyframes spin { from { transform: rotate(0); } to { transform: rotate(360deg); } }
+.plant { transform-box: fill-box; transform-origin: 50% 100%; animation: sway 5s ease-in-out infinite; }
+@keyframes sway { 50% { transform: rotate(3deg); } }
+
+/* Bạn nhỏ */
+#stu { transform: translateX(110px); transition: transform 1.2s ease-in-out; }
+.scene.walking #stu, .scene.seated #stu { transform: translateX(220px); }
+.stu-bob { animation: bob 2.6s ease-in-out infinite; }
+@keyframes bob { 50% { transform: translateY(-2px); } }
+.eye { transform-box: fill-box; transform-origin: center; animation: blink 4.5s infinite; }
+@keyframes blink { 0%, 93%, 100% { transform: scaleY(1); } 96% { transform: scaleY(.1); } }
+.leg, .arm { transform-box: fill-box; transform-origin: 50% 4%; }
+.arm { transition: transform .45s ease; }
+.legs-sit { display: none; }
+.backpack { transition: opacity .3s; }
+.scene.walking .stu-bob { animation: walk-bob .3s ease-in-out infinite alternate; }
+@keyframes walk-bob { to { transform: translateY(-4px); } }
+.scene.walking .leg-f { animation: swing .3s ease-in-out infinite alternate; }
+.scene.walking .leg-b { animation: swing .3s ease-in-out infinite alternate-reverse; }
+.scene.walking .arm { animation: swing .3s ease-in-out infinite alternate-reverse; }
+@keyframes swing { from { transform: rotate(-22deg); } to { transform: rotate(22deg); } }
+.scene.seated .legs-stand { display: none; }
+.scene.seated .legs-sit { display: inline; }
+.scene.seated .backpack { opacity: 0; }
+.scene.seated .stu-bob { animation: none; }
+.scene.seated .arm { transform: rotate(-82deg); }
+.head { transition: transform .4s; transform-box: fill-box; transform-origin: 30% 100%; }
+.scene.seated .head { transform: rotate(10deg); }
+
+/* Đèn bàn và camera */
+.dim, .lamp-light { opacity: 0; pointer-events: none; transition: opacity .5s; }
+.bulb { transition: fill .3s; }
+.scene.lamp-on .dim { opacity: .28; }
+.scene.lamp-on .lamp-light { opacity: 1; }
+.scene.lamp-on .bulb { fill: #fff6b0; }
+.scene.zoom .room { transform: scale(2.6); }
+.scene.fade .scene-fade { opacity: 1; }
+
+/* Bong bóng gợi ý */
+.bubble { animation: float 1.6s ease-in-out infinite; transition: opacity .3s; }
+@keyframes float { 50% { transform: translateY(-5px); } }
+.scene.busy .bubble { opacity: 0; }
+.scene.nudge .bubble { animation: nudge .5s; }
+@keyframes nudge { 25% { transform: translateX(-6px); } 75% { transform: translateX(6px); } }
+
+/* Menu hiện ra sau khi ngồi vào bàn */
+#app.enter > * { animation: rise .5s both; }
+#app.enter > *:nth-child(2) { animation-delay: .08s; }
+#app.enter > *:nth-child(3) { animation-delay: .16s; }
+#app.enter > *:nth-child(4) { animation-delay: .24s; }
+@keyframes rise { from { opacity: 0; transform: translateY(16px); } }
+
+@media (max-width: 600px) {
+  .scene.zoom .room { transform: scale(2.1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .scene *, #app.enter > * { animation: none !important; transition: none !important; }
+  .chalk { stroke-dashoffset: 0; fill: #f4f1e8; }
 }

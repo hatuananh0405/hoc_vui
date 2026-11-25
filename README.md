@@ -9,6 +9,13 @@ App chạy hoàn toàn trên trình duyệt, không cần server hay tài khoả
 - **Khi đang sửa code**: chạy server tĩnh trong thư mục này (`python3 -m http.server`), rồi mở `http://localhost:8000`.
 - Sửa code xong, chạy `node build.mjs` để tạo lại `dist/hoc-vui.html`.
 
+## Phòng học (màn mở đầu)
+
+Mở app sẽ thấy một phòng học nhỏ có hoạt ảnh: chữ phấn tự viết lên bảng, mây trôi ngoài cửa sổ, đồng hồ chạy, bạn nhỏ chớp mắt.
+Bấm vào bàn học (hoặc bạn nhỏ, cái ghế, hoặc nhấn Enter): bạn nhỏ đi tới ngồi xuống, bật đèn bàn, camera phóng vào bàn rồi menu hiện ra.
+Nút "Bỏ qua" vào menu ngay. Nút 🏫 trên thanh trên cùng đưa bạn về lại phòng học.
+Nếu máy bật chế độ giảm chuyển động (prefers-reduced-motion), app bỏ qua hoạt ảnh.
+
 ## Trò chơi
 
 | Trò | Luật chơi |
@@ -55,6 +62,7 @@ index.html        khung trang
 css/style.css     giao diện (responsive cho điện thoại)
 js/main.js        các màn hình và điều hướng
 js/games.js       logic các trò chơi
+js/classroom.js   phòng học có hoạt ảnh (SVG + CSS)
 js/parser.js      đọc file docx/txt/csv/json
 js/store.js       lưu trữ, XP, cấp độ, huy hiệu
 js/sample.js      bộ đề mẫu
