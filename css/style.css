@@ -253,3 +253,5 @@ textarea { resize: vertical; font-family: ui-monospace, Menlo, Consolas, monospa
 .mp-form { display: flex; flex-direction: column; gap: 10px; }
 .mp-form label { display: flex; flex-direction: column; gap: 4px; font-weight: 600; font-size: .92rem; }
 .mp-empty { margin: 4px 0 0; }
+.mp-status { font-size: .88rem; min-height: 1.2em; }
+.mp-now a, .mp-err a { color: var(--primary); }
