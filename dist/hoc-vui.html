@@ -260,6 +260,8 @@ textarea { resize: vertical; font-family: ui-monospace, Menlo, Consolas, monospa
 .mp-form { display: flex; flex-direction: column; gap: 10px; }
 .mp-form label { display: flex; flex-direction: column; gap: 4px; font-weight: 600; font-size: .92rem; }
 .mp-empty { margin: 4px 0 0; }
+.mp-status { font-size: .88rem; min-height: 1.2em; }
+.mp-now a, .mp-err a { color: var(--primary); }
 
 </style>
   </head>
@@ -1372,96 +1374,68 @@ function loadSpotify() {
 }
 
 // ---------- Trình phát ----------
-// Gắn trình phát vào host. events: onPlaying(true | false | null khi không biết), onEnded(), onError(msg).
+const YT_ERRORS = {
+  2: 'Link không hợp lệ (lỗi 2).',
+  5: 'Video không phát được trên trình duyệt này (lỗi 5).',
+  100: 'Video đã bị xoá hoặc để riêng tư (lỗi 100).',
+  101: 'Chủ video không cho phát trên trang web khác (lỗi 101).',
+  150: 'Chủ video không cho phát trên trang web khác (lỗi 150).',
+  152: 'YouTube từ chối trình phát nhúng (lỗi 152).',
+  153: 'YouTube không xác định được trang đang phát (lỗi 153). Hãy mở app bằng link web thay vì mở file trên máy.',
+};
+const PRESS_PLAY = 'Nếu nhạc chưa chạy, bấm nút ▶ ngay trong khung trình phát (trình duyệt có thể chặn tự phát).';
+const MAX_SKIPS = 8;
+
+// Chỉ gửi origin khi chạy trên web thật; mở file trên máy thì không có origin.
+const pageOrigin = () => (/^https?:$/.test(location.protocol) ? location.origin : null);
+
+function ytPlayerVars(link) {
+  const vars = { autoplay: 1, playsinline: 1, rel: 0 };
+  const origin = pageOrigin();
+  if (origin) {
+    vars.origin = origin;
+    vars.widget_referrer = location.href;
+  }
+  if (link.listId) {
+    vars.listType = 'playlist';
+    vars.list = link.listId;
+  }
+  return vars;
+}
+
+// Gắn trình phát vào host. events:
+//   onPlaying(true | false | null khi không biết), onEnded(), onError(msg), onStatus(text)
 // Trả về hàm dừng / gỡ trình phát.
 function mountPlayer(host, link, events) {
-  let dead = false;
-  let destroy = () => {};
+  const state = { dead: false, destroy: () => {}, timer: 0 };
   const box = document.createElement('div');
   host.replaceChildren(box);
+  events.onStatus('Đang tải trình phát...');
+
+  const fallback = (src, title) => {
+    if (state.dead) return;
+    box.replaceWith(frame(src, title));
+    events.onPlaying(null);
+    events.onStatus('Đang dùng trình phát dự phòng. ' + PRESS_PLAY);
+  };
 
   if (link.kind === 'youtube') {
     loadYouTube()
-      .then((YT) => {
-        if (dead) return;
-        let ended = false;
-        const player = new YT.Player(box, {
-          width: '100%',
-          height: '100%',
-          videoId: link.videoId || undefined,
-          playerVars: { autoplay: 1, playsinline: 1, rel: 0, ...(link.listId ? { listType: 'playlist', list: link.listId } : {}) },
-          events: {
-            onStateChange: (e) => {
-              if (e.data === YT.PlayerState.PLAYING) events.onPlaying(true);
-              else if (e.data === YT.PlayerState.PAUSED || e.data === YT.PlayerState.ENDED) events.onPlaying(false);
-              if (e.data !== YT.PlayerState.ENDED || ended) return;
-              // Playlist YouTube tự phát bài tiếp; chỉ chuyển link khi đã hết bài cuối.
-              const list = link.listId ? player.getPlaylist?.() : null;
-              const idx = link.listId ? player.getPlaylistIndex?.() : 0;
-              if (!list || idx >= list.length - 1) {
-                ended = true;
-                events.onEnded();
-              }
-            },
-            onError: (e) => {
-              const msg = { 2: 'Link không hợp lệ.', 5: 'Video không phát được trên trình duyệt này.', 100: 'Video đã bị xoá hoặc để riêng tư.', 101: 'Chủ video không cho phát nhúng.', 150: 'Chủ video không cho phát nhúng.' }[e.data];
-              // Một số playlist tự động của YouTube (Mix) không phát nhúng được khi thiếu video bắt đầu
-              const mixHint = link.listId?.startsWith('RD') && !link.videoId ? ' Đây là Mix tự động của YouTube, hãy mở một bài trong Mix rồi dán link bài đó.' : '';
-              events.onError((msg || 'YouTube báo lỗi khi phát.') + mixHint);
-            },
-          },
-        });
-        destroy = () => {
-          player.destroy?.();
-        };
-      })
-      .catch(() => {
-        if (dead) return;
-        // Không tải được thư viện: dùng iframe thường, vẫn nghe được nhưng không tự chuyển bài.
-        box.replaceWith(frame(youtubeEmbedSrc(link), 'Trình phát YouTube'));
-        events.onPlaying(null);
-      });
+      .then((YT) => mountYouTube(YT, box, link, events, state))
+      .catch(() => fallback(youtubeEmbedSrc(link), 'Trình phát YouTube'));
   } else {
     const height = link.type === 'track' || link.type === 'episode' ? 152 : 352;
     host.style.setProperty('--mp-h', height + 'px');
     loadSpotify()
-      .then((api) => {
-        if (dead) return;
-        api.createController(box, { uri: `spotify:${link.type}:${link.id}`, width: '100%', height }, (ctrl) => {
-          if (dead) {
-            ctrl.destroy?.();
-            return;
-          }
-          let ended = false;
-          ctrl.addListener('playback_update', (e) => {
-            const d = e.data || {};
-            events.onPlaying(!d.isPaused);
-            // Bài lẻ: hết bài thì chuyển link tiếp theo. Album / playlist Spotify tự phát trong khung.
-            const single = link.type === 'track' || link.type === 'episode';
-            if (single && !ended && d.duration > 0 && d.position > 0 && d.duration - d.position < 1200) {
-              ended = true;
-              events.onEnded();
-            }
-          });
-          ctrl.addListener('ready', () => {
-            ctrl.play?.();
-          });
-          destroy = () => {
-            ctrl.destroy?.();
-          };
-        });
-      })
-      .catch(() => {
-        if (dead) return;
-        box.replaceWith(frame(`https://open.spotify.com/embed/${link.type}/${link.id}`, 'Trình phát Spotify'));
-        events.onPlaying(null);
-      });
+      .then((api) => mountSpotify(api, box, link, height, events, state))
+      .catch(() => fallback(`https://open.spotify.com/embed/${link.type}/${link.id}`, 'Trình phát Spotify'));
   }
 
   return () => {
-    dead = true;
+    state.dead = true;
+    clearTimeout(state.timer);
     try {
-      destroy();
+      state.destroy();
     } catch {
       /* trình phát đã bị gỡ */
     }
@@ -1470,14 +1444,108 @@ function mountPlayer(host, link, events) {
   };
 }
 
+function mountYouTube(YT, box, link, events, state) {
+  if (state.dead) return;
+  const S = YT.PlayerState;
+  let ended = false;
+  let skips = 0;
+  const playlistPos = (player) => {
+    const list = player.getPlaylist?.() || [];
+    return { list, idx: player.getPlaylistIndex?.() ?? 0 };
+  };
+  const onState = (player, e) => {
+    clearTimeout(state.timer);
+    if (e.data === S.PLAYING) {
+      skips = 0;
+      events.onPlaying(true);
+      events.onStatus('Đang phát');
+    } else if (e.data === S.BUFFERING) events.onStatus('Đang tải bài...');
+    else if (e.data === S.PAUSED) {
+      events.onPlaying(false);
+      events.onStatus('Đã tạm dừng');
+    } else if (e.data === S.ENDED) {
+      events.onPlaying(false);
+      // Playlist YouTube tự phát bài tiếp; chỉ chuyển link khi đã hết bài cuối.
+      const { list, idx } = playlistPos(player);
+      if (!ended && (!link.listId || idx >= list.length - 1)) {
+        ended = true;
+        events.onEnded();
+      }
+    } else if (e.data === S.CUED || e.data === S.UNSTARTED) {
+      state.timer = setTimeout(() => events.onStatus(PRESS_PLAY), 2500);
+    }
+  };
+  const onError = (player, e) => {
+    const msg = YT_ERRORS[e.data] || `YouTube báo lỗi khi phát (lỗi ${e.data}).`;
+    // Trong Mix / playlist: bỏ qua bài bị chặn và phát bài tiếp theo trong danh sách
+    const { list, idx } = playlistPos(player);
+    if (link.listId && idx < list.length - 1 && skips < MAX_SKIPS) {
+      skips++;
+      events.onStatus(`Bỏ qua 1 bài: ${msg} Đang chuyển bài tiếp trong danh sách...`);
+      player.nextVideo();
+      return;
+    }
+    events.onError(msg);
+  };
+  const player = new YT.Player(box, {
+    width: '100%',
+    height: '100%',
+    videoId: link.videoId || undefined,
+    playerVars: ytPlayerVars(link),
+    events: {
+      onReady: () => {
+        events.onStatus('Trình phát đã sẵn sàng.');
+        state.timer = setTimeout(() => events.onStatus(PRESS_PLAY), 2500);
+      },
+      onStateChange: (e) => onState(player, e),
+      onError: (e) => onError(player, e),
+    },
+  });
+  state.destroy = () => {
+    player.destroy?.();
+  };
+}
+
+function mountSpotify(api, box, link, height, events, state) {
+  if (state.dead) return;
+  api.createController(box, { uri: `spotify:${link.type}:${link.id}`, width: '100%', height }, (ctrl) => {
+    if (state.dead) {
+      ctrl.destroy?.();
+      return;
+    }
+    let ended = false;
+    const single = link.type === 'track' || link.type === 'episode';
+    ctrl.addListener('ready', () => {
+      events.onStatus('Trình phát đã sẵn sàng.');
+      ctrl.play?.();
+      state.timer = setTimeout(() => events.onStatus(PRESS_PLAY + ' Muốn nghe cả bài thì cần đăng nhập Spotify trên trình duyệt này.'), 3000);
+    });
+    ctrl.addListener('playback_update', (e) => {
+      const d = e.data || {};
+      if (!d.isPaused) clearTimeout(state.timer);
+      events.onPlaying(!d.isPaused);
+      events.onStatus(d.isPaused ? 'Đã tạm dừng' : 'Đang phát');
+      // Bài lẻ: hết bài thì chuyển link tiếp theo. Album / playlist Spotify tự phát trong khung.
+      if (single && !ended && d.duration > 0 && d.position > 0 && d.duration - d.position < 1200) {
+        ended = true;
+        events.onEnded();
+      }
+    });
+    state.destroy = () => {
+      ctrl.destroy?.();
+    };
+  });
+}
+
 function frame(src, title) {
   const f = document.createElement('iframe');
   f.src = src;
   f.title = title;
   f.allow = 'autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture';
-  f.loading = 'lazy';
+  f.referrerPolicy = 'strict-origin-when-cross-origin';
   return f;
 }
+
 
 // ---------- Bảng điều khiển ----------
 const SRC_TAG = { spotify: '<span class="mp-src sp">Spotify</span>', youtube: '<span class="mp-src yt">YouTube</span>' };
@@ -1498,9 +1566,16 @@ function createMusicPanel(root, { onPlaying = () => {} } = {}) {
       <b>🎧 Góc âm nhạc</b>
       <span class="muted">Dán link Spotify, YouTube hoặc YouTube Music</span>
     </div>
+    ${
+      location.protocol === 'file:'
+        ? `<div class="mp-err">Bạn đang mở app từ file trên máy. YouTube và Spotify thường chặn phát nhạc trong trường hợp này.
+           Hãy mở app tại <a href="https://hatuananh0405.github.io/hoc_vui/" target="_blank" rel="noopener">hatuananh0405.github.io/hoc_vui</a>.</div>`
+        : ''
+    }
     <div class="mp-player" hidden>
       <div class="mp-now"></div>
       <div class="mp-frame"></div>
+      <div class="mp-status muted" aria-live="polite"></div>
       <div class="mp-msg" hidden></div>
       <div class="row">
         <button class="btn small" data-mp="prev">⏮ Bài trước</button>
@@ -1514,6 +1589,7 @@ function createMusicPanel(root, { onPlaying = () => {} } = {}) {
   const frameEl = root.querySelector('.mp-frame');
   const nowEl = root.querySelector('.mp-now');
   const msgEl = root.querySelector('.mp-msg');
+  const statusEl = root.querySelector('.mp-status');
   const body = root.querySelector('.mp-body');
 
   let mode = 'list'; // 'list' | 'new' | 'save'
@@ -1539,12 +1615,16 @@ function createMusicPanel(root, { onPlaying = () => {} } = {}) {
   function updateNow() {
     const c = currentItem();
     if (!c?.item) return;
-    nowEl.innerHTML = `${srcTag(parseMusicLink(c.item.url))} <b>${esc(c.item.title)}</b>
-      <span class="muted">· ${current.index + 1}/${c.p.items.length} · ${esc(c.p.name)}</span>`;
+    const link = parseMusicLink(c.item.url);
+    const where = link?.kind === 'spotify' ? 'Spotify' : 'YouTube';
+    const open = link ? ` · <a href="${esc(link.url)}" target="_blank" rel="noopener">Mở trên ${where} ↗</a>` : '';
+    nowEl.innerHTML = `${srcTag(link)} <b>${esc(c.item.title)}</b>
+      <span class="muted">· ${current.index + 1}/${c.p.items.length} · ${esc(c.p.name)}${open}</span>`;
   }
 
   function stopPlayer() {
     clearTimeout(msgTimer);
+    statusEl.textContent = '';
     unmount?.();
     unmount = null;
     onPlaying(false);
@@ -1568,6 +1648,9 @@ function createMusicPanel(root, { onPlaying = () => {} } = {}) {
     unmount = mountPlayer(frameEl, link, {
       onPlaying: (v) => {
         if (!gone) onPlaying(v);
+      },
+      onStatus: (text) => {
+        if (!gone) statusEl.textContent = text;
       },
       onEnded: () => {
         if (!gone) step(1);
