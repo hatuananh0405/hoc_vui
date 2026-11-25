@@ -6,45 +6,69 @@ import { esc, uid } from './util.js';
 import * as store from './store.js';
 
 const SPOTIFY_TYPES = { track: 'Bài hát', album: 'Album', playlist: 'Playlist', episode: 'Tập podcast', show: 'Podcast', artist: 'Nghệ sĩ' };
-const YT_HOSTS = ['youtube.com', 'music.youtube.com', 'youtu.be', 'youtube-nocookie.com'];
+const YT_HOSTS = new Set(['youtube.com', 'music.youtube.com', 'youtu.be', 'youtube-nocookie.com']);
+const SPOTIFY_URI = /^spotify:(track|album|playlist|episode|show|artist):([A-Za-z0-9]{10,40})$/;
+const SPOTIFY_ID = /^[A-Za-z0-9]{10,40}$/;
+const YT_VIDEO = /^[A-Za-z0-9_-]{11}$/;
+const YT_LIST = /^[A-Za-z0-9_-]{10,64}$/;
+const YT_PATH = /^\/(?:embed|shorts|live)\/([^/?#]+)/;
 
 // ---------- Nhận diện link ----------
 // Trả về null nếu không phải link Spotify / YouTube hợp lệ. Chỉ giữ lại ID đã kiểm tra,
 // URL phát nhạc luôn được dựng lại từ ID nên không chèn được nội dung lạ.
 export function parseMusicLink(raw) {
-  const s = String(raw || '').trim();
-  const uri = s.match(/^spotify:(track|album|playlist|episode|show|artist):([A-Za-z0-9]{10,40})$/);
+  const s = String(raw ?? '').trim();
+  const uri = SPOTIFY_URI.exec(s);
   if (uri) return spotify(uri[1], uri[2]);
-  let u;
+  const u = toUrl(s);
+  if (!u) return null;
+  const host = u.hostname.toLowerCase().replace(/^(www|m)\./, '');
+  if (host === 'open.spotify.com') return parseSpotifyUrl(u);
+  if (YT_HOSTS.has(host)) return parseYouTubeUrl(u, host);
+  return null;
+}
+
+function toUrl(s) {
   try {
-    u = new URL(/^https?:\/\//i.test(s) ? s : 'https://' + s);
+    return new URL(/^https?:\/\//i.test(s) ? s : 'https://' + s);
   } catch {
     return null;
   }
-  const host = u.hostname.toLowerCase().replace(/^(www|m)\./, '');
-  if (host === 'open.spotify.com') {
-    const parts = u.pathname.split('/').filter((p) => p && !/^intl-/i.test(p) && p !== 'embed');
-    const [type, id] = parts;
-    return SPOTIFY_TYPES[type] && /^[A-Za-z0-9]{10,40}$/.test(id || '') ? spotify(type, id) : null;
-  }
-  if (YT_HOSTS.includes(host)) {
-    let v = null;
-    if (host === 'youtu.be') v = u.pathname.slice(1).split('/')[0];
-    else if (u.pathname === '/watch') v = u.searchParams.get('v');
-    else v = (u.pathname.match(/^\/(?:embed|shorts|live)\/([^/?#]+)/) || [])[1] || null;
-    const list = u.searchParams.get('list');
-    const videoId = v && /^[A-Za-z0-9_-]{11}$/.test(v) ? v : null;
-    const listId = list && /^[A-Za-z0-9_-]{10,64}$/.test(list) ? list : null;
-    if (!videoId && !listId) return null;
-    return {
-      kind: 'youtube',
-      videoId,
-      listId,
-      label: videoId ? 'Video YouTube' : 'Playlist YouTube',
-      url: videoId ? `https://www.youtube.com/watch?v=${videoId}${listId ? `&list=${listId}` : ''}` : `https://www.youtube.com/playlist?list=${listId}`,
-    };
-  }
-  return null;
+}
+
+function parseSpotifyUrl(u) {
+  const parts = u.pathname.split('/').filter((p) => p && !/^intl-/i.test(p) && p !== 'embed');
+  const [type, id = ''] = parts;
+  return SPOTIFY_TYPES[type] && SPOTIFY_ID.test(id) ? spotify(type, id) : null;
+}
+
+function youtubeVideoId(u, host) {
+  if (host === 'youtu.be') return u.pathname.slice(1).split('/')[0];
+  if (u.pathname === '/watch') return u.searchParams.get('v');
+  return YT_PATH.exec(u.pathname)?.[1] ?? null;
+}
+
+function parseYouTubeUrl(u, host) {
+  const v = youtubeVideoId(u, host);
+  const list = u.searchParams.get('list');
+  const videoId = v && YT_VIDEO.test(v) ? v : null;
+  const listId = list && YT_LIST.test(list) ? list : null;
+  if (!videoId && !listId) return null;
+  const label = videoId ? 'Video YouTube' : 'Playlist YouTube';
+  return { kind: 'youtube', videoId, listId, label, url: youtubeUrl(videoId, listId) };
+}
+
+function youtubeUrl(videoId, listId) {
+  if (!videoId) return `https://www.youtube.com/playlist?list=${listId}`;
+  const list = listId ? '&list=' + listId : '';
+  return `https://www.youtube.com/watch?v=${videoId}${list}`;
+}
+
+function youtubeEmbedSrc(link) {
+  const opts = 'autoplay=1&playsinline=1';
+  if (!link.videoId) return `https://www.youtube.com/embed/videoseries?list=${link.listId}&${opts}`;
+  const list = link.listId ? '&list=' + link.listId : '';
+  return `https://www.youtube.com/embed/${link.videoId}?${opts}${list}`;
 }
 
 function spotify(type, id) {
@@ -165,10 +189,7 @@ function mountPlayer(host, link, events) {
       .catch(() => {
         if (dead) return;
         // Không tải được thư viện: dùng iframe thường, vẫn nghe được nhưng không tự chuyển bài.
-        const src = link.videoId
-          ? `https://www.youtube.com/embed/${link.videoId}?autoplay=1&playsinline=1${link.listId ? `&list=${link.listId}` : ''}`
-          : `https://www.youtube.com/embed/videoseries?list=${link.listId}&autoplay=1&playsinline=1`;
-        box.replaceWith(frame(src, 'Trình phát YouTube'));
+        box.replaceWith(frame(youtubeEmbedSrc(link), 'Trình phát YouTube'));
         events.onPlaying(null);
       });
   } else {
@@ -230,8 +251,14 @@ function frame(src, title) {
 }
 
 // ---------- Bảng điều khiển ----------
-const srcTag = (link) =>
-  link?.kind === 'spotify' ? '<span class="mp-src sp">Spotify</span>' : link?.kind === 'youtube' ? '<span class="mp-src yt">YouTube</span>' : '';
+const SRC_TAG = { spotify: '<span class="mp-src sp">Spotify</span>', youtube: '<span class="mp-src yt">YouTube</span>' };
+const srcTag = (link) => SRC_TAG[link?.kind] || '';
+
+// Lấy giá trị chuỗi từ form (FormData.get có thể trả về File)
+const field = (f, key) => {
+  const v = f.get(key);
+  return typeof v === 'string' ? v : '';
+};
 
 const BAD_LINK = 'Link chưa đúng. Hãy dán link bài hát, album hoặc playlist từ Spotify, YouTube hoặc YouTube Music.';
 
@@ -296,7 +323,7 @@ export function createMusicPanel(root, { onPlaying = () => {} } = {}) {
 
   function play(pid, index) {
     const p = store.getPlaylist(pid);
-    if (!p || !p.items.length) return;
+    if (!p?.items.length) return;
     current = { pid, index: ((index % p.items.length) + p.items.length) % p.items.length };
     const item = p.items[current.index];
     const link = parseMusicLink(item.url);
@@ -340,7 +367,7 @@ export function createMusicPanel(root, { onPlaying = () => {} } = {}) {
   function addLink(pid, link) {
     const item = { id: uid(), url: link.url, title: link.label };
     store.addPlaylistItem(pid, item);
-    fetchTitle(link).then((t) => {
+    void fetchTitle(link).then((t) => {
       if (!t || gone) return;
       store.setItemTitle(pid, item.id, t);
       renderBody();
@@ -392,64 +419,85 @@ export function createMusicPanel(root, { onPlaying = () => {} } = {}) {
     if (focus) focus.select();
   }
 
+  function renderPlaylistHead(p, open) {
+    if (renaming === p.id) {
+      return `<form class="mp-rename" data-form="rename" data-id="${p.id}">
+          <input name="name" maxlength="60" required value="${esc(p.name)}">
+          <button class="btn small primary">Lưu</button><button type="button" class="btn small" data-mp="cancel">Huỷ</button>
+        </form>`;
+    }
+    const arrow = open ? '▾' : '▸';
+    const disabled = p.items.length ? '' : 'disabled';
+    return `<button class="mp-pl-name" data-mp="toggle" data-id="${p.id}" aria-expanded="${open}">${arrow} 📀 ${esc(p.name)}
+        <small class="muted">${p.items.length} link</small></button>
+      <div class="row">
+        <button class="btn small primary" data-mp="play" data-id="${p.id}" ${disabled}>▶ Phát</button>
+        <button class="btn small" data-mp="rename" data-id="${p.id}" title="Đổi tên">✏️</button>
+        <button class="btn small danger" data-mp="del" data-id="${p.id}" title="Xoá playlist">🗑</button>
+      </div>`;
+  }
+
+  function renderItem(p, it, i) {
+    const on = current?.pid === p.id && current.index === i;
+    const icon = on ? '🔊' : '▶';
+    return `<li class="${on ? 'on' : ''}">
+        <button class="mp-item" data-mp="playItem" data-id="${p.id}" data-i="${i}">${icon} ${srcTag(parseMusicLink(it.url))} ${esc(it.title)}</button>
+        <button class="link danger" data-mp="delItem" data-id="${p.id}" data-item="${it.id}">Xoá</button>
+      </li>`;
+  }
+
   function renderPlaylist(p, err) {
     const open = p.id === openId;
-    const head =
-      renaming === p.id
-        ? `<form class="mp-rename" data-form="rename" data-id="${p.id}">
-             <input name="name" maxlength="60" required value="${esc(p.name)}">
-             <button class="btn small primary">Lưu</button><button type="button" class="btn small" data-mp="cancel">Huỷ</button>
-           </form>`
-        : `<button class="mp-pl-name" data-mp="toggle" data-id="${p.id}" aria-expanded="${open}">${open ? '▾' : '▸'} 📀 ${esc(p.name)}
-             <small class="muted">${p.items.length} link</small></button>
-           <div class="row">
-             <button class="btn small primary" data-mp="play" data-id="${p.id}" ${p.items.length ? '' : 'disabled'}>▶ Phát</button>
-             <button class="btn small" data-mp="rename" data-id="${p.id}" title="Đổi tên">✏️</button>
-             <button class="btn small danger" data-mp="del" data-id="${p.id}" title="Xoá playlist">🗑</button>
-           </div>`;
-    const items = open
-      ? `<ol class="mp-items">${p.items
-          .map((it, i) => {
-            const on = current?.pid === p.id && current.index === i;
-            return `<li class="${on ? 'on' : ''}">
-              <button class="mp-item" data-mp="playItem" data-id="${p.id}" data-i="${i}">${on ? '🔊' : '▶'} ${srcTag(parseMusicLink(it.url))} ${esc(it.title)}</button>
-              <button class="link danger" data-mp="delItem" data-id="${p.id}" data-item="${it.id}">Xoá</button>
-            </li>`;
-          })
-          .join('')}</ol>
-         <form class="mp-add" data-form="add" data-id="${p.id}">
-           <input name="url" placeholder="Dán link bài hát, album hoặc playlist" aria-label="Link nhạc" value="${esc(draft.addUrl || '')}">
-           <button class="btn small">＋ Thêm</button>
-         </form>${err}`
-      : '';
-    return `<div class="mp-pl">${`<div class="mp-pl-head">${head}</div>`}${items}</div>`;
+    const head = `<div class="mp-pl-head">${renderPlaylistHead(p, open)}</div>`;
+    if (!open) return `<div class="mp-pl">${head}</div>`;
+    const items = p.items.map((it, i) => renderItem(p, it, i)).join('');
+    return `<div class="mp-pl">${head}
+        <ol class="mp-items">${items}</ol>
+        <form class="mp-add" data-form="add" data-id="${p.id}">
+          <input name="url" placeholder="Dán link bài hát, album hoặc playlist" aria-label="Link nhạc" value="${esc(draft.addUrl || '')}">
+          <button class="btn small">＋ Thêm</button>
+        </form>${err}</div>`;
   }
+
+  const showMode = (m) => {
+    mode = m;
+    renaming = null;
+    renderBody();
+  };
+
+  // Các nút bấm trong bảng nhạc (data-mp="...")
+  const ACTIONS = {
+    prev: () => step(-1),
+    next: () => step(1),
+    stop: () => stop(),
+    play: (d) => {
+      openId = d.id;
+      play(d.id, 0);
+    },
+    playItem: (d) => play(d.id, Number(d.i)),
+    del: (d) => deleteList(d.id),
+    delItem: (d) => deleteItem(d.id, d.item),
+    new: () => showMode('new'),
+    save: () => showMode('save'),
+    cancel: () => showMode('list'),
+    toggle: (d) => {
+      openId = openId === d.id ? null : d.id;
+      renderBody();
+    },
+    rename: (d) => {
+      renaming = d.id;
+      renderBody();
+    },
+  };
+  const PLAYER_ACTIONS = new Set(['prev', 'next', 'stop']);
 
   function onClick(e) {
     const el = e.target.closest('[data-mp]');
-    if (!el) return;
-    const { mp, id, i, item } = el.dataset;
+    const action = el && ACTIONS[el.dataset.mp];
+    if (!action) return;
     error = '';
-    if (mp !== 'prev' && mp !== 'next' && mp !== 'stop') draft = {};
-    if (mp === 'prev') step(-1);
-    else if (mp === 'next') step(1);
-    else if (mp === 'stop') stop();
-    else if (mp === 'play') {
-      openId = id;
-      play(id, 0);
-    } else if (mp === 'playItem') play(id, Number(i));
-    else if (mp === 'del') deleteList(id);
-    else if (mp === 'delItem') deleteItem(id, item);
-    else {
-      if (mp === 'new' || mp === 'save') mode = mp;
-      if (mp === 'cancel') {
-        mode = 'list';
-        renaming = null;
-      }
-      if (mp === 'toggle') openId = openId === id ? null : id;
-      if (mp === 'rename') renaming = id;
-      renderBody();
-    }
+    if (!PLAYER_ACTIONS.has(el.dataset.mp)) draft = {};
+    action(el.dataset);
   }
 
   function deleteList(id) {
@@ -473,69 +521,89 @@ export function createMusicPanel(root, { onPlaying = () => {} } = {}) {
     renderBody();
   }
 
-  function onSubmit(e) {
-    const form = e.target.closest('form[data-form]');
-    if (!form) return;
-    e.preventDefault();
-    const f = new FormData(form);
-    const name = String(f.get('name') || '').trim();
-    error = '';
-    draft = { name: f.get('name') || '', links: f.get('links') || '', url: f.get('url') || '', addUrl: form.dataset.form === 'add' ? f.get('url') || '' : '' };
+  // Báo link sai nhưng giữ nguyên chữ đã gõ trong form
+  function failLink() {
+    error = BAD_LINK;
+    renderBody();
+  }
 
-    if (form.dataset.form === 'new') {
-      if (!name) return;
-      const lines = String(f.get('links') || '').split(/\s+/).filter(Boolean);
-      const links = lines.map(parseMusicLink);
-      if (links.some((l) => !l)) {
-        error = BAD_LINK;
-        renderBody();
-        return;
-      }
-      const p = { id: uid(), name, createdAt: Date.now(), items: [] };
-      store.addPlaylist(p);
-      links.forEach((l) => addLink(p.id, l));
-      openId = p.id;
-      mode = 'list';
-      draft = {};
-    } else if (form.dataset.form === 'save') {
-      const link = parseMusicLink(f.get('url'));
-      if (!link) {
-        error = BAD_LINK;
-        renderBody();
-        return;
-      }
-      const p = { id: uid(), name: name || link.label, createdAt: Date.now(), items: [] };
-      store.addPlaylist(p);
-      addLink(p.id, link);
-      if (!name) {
-        // Lấy tên gốc của playlist làm tên nếu người dùng không đặt
-        fetchTitle(link).then((t) => {
-          if (!t || gone) return;
-          store.renamePlaylist(p.id, t.slice(0, 60));
-          renderBody();
-          updateNow();
-        });
-      }
-      openId = p.id;
-      mode = 'list';
-      draft = {};
-    } else if (form.dataset.form === 'rename') {
-      if (name) store.renamePlaylist(form.dataset.id, name);
-      renaming = null;
-      draft = {};
-      updateNow();
-    } else if (form.dataset.form === 'add') {
-      const link = parseMusicLink(f.get('url'));
-      if (!link) error = BAD_LINK;
-      else {
-        addLink(form.dataset.id, link);
-        draft = {};
-      }
-      renderBody();
-      body.querySelector('.mp-add input')?.focus();
+  function done(pid) {
+    if (pid) openId = pid;
+    mode = 'list';
+    renaming = null;
+    draft = {};
+    renderBody();
+  }
+
+  function submitNew(f) {
+    const name = field(f, 'name').trim();
+    if (!name) return;
+    const links = field(f, 'links').split(/\s+/).filter(Boolean).map(parseMusicLink);
+    if (links.some((l) => !l)) {
+      failLink();
       return;
     }
+    const p = { id: uid(), name, createdAt: Date.now(), items: [] };
+    store.addPlaylist(p);
+    links.forEach((l) => addLink(p.id, l));
+    done(p.id);
+  }
+
+  function submitSave(f) {
+    const name = field(f, 'name').trim();
+    const link = parseMusicLink(field(f, 'url'));
+    if (!link) {
+      failLink();
+      return;
+    }
+    const p = { id: uid(), name: name || link.label, createdAt: Date.now(), items: [] };
+    store.addPlaylist(p);
+    addLink(p.id, link);
+    if (!name) {
+      // Không đặt tên thì lấy tên gốc của playlist
+      void fetchTitle(link).then((t) => {
+        if (!t || gone) return;
+        store.renamePlaylist(p.id, t.slice(0, 60));
+        renderBody();
+        updateNow();
+      });
+    }
+    done(p.id);
+  }
+
+  function submitRename(f, form) {
+    const name = field(f, 'name').trim();
+    if (name) store.renamePlaylist(form.dataset.id, name);
+    done();
+    updateNow();
+  }
+
+  function submitAdd(f, form) {
+    const link = parseMusicLink(field(f, 'url'));
+    if (link) {
+      addLink(form.dataset.id, link);
+      draft = {};
+    } else error = BAD_LINK;
     renderBody();
+    body.querySelector('.mp-add input')?.focus();
+  }
+
+  const SUBMITS = { new: submitNew, save: submitSave, rename: submitRename, add: submitAdd };
+
+  function onSubmit(e) {
+    const form = e.target.closest('form[data-form]');
+    const handler = form && SUBMITS[form.dataset.form];
+    if (!handler) return;
+    e.preventDefault();
+    const f = new FormData(form);
+    error = '';
+    draft = {
+      name: field(f, 'name'),
+      links: field(f, 'links'),
+      url: field(f, 'url'),
+      addUrl: form.dataset.form === 'add' ? field(f, 'url') : '',
+    };
+    handler(f, form);
   }
 
   root.addEventListener('click', onClick);
