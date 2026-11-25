@@ -1395,6 +1395,8 @@ const YT_ERRORS = {
 };
 const PRESS_PLAY = 'Nếu nhạc chưa chạy, bấm nút ▶ ngay trong khung trình phát (trình duyệt có thể chặn tự phát).';
 const MAX_SKIPS = 8;
+// Sau khi một bài trong playlist / Mix kết thúc, đợi chừng này để YouTube tự chuyển bài tiếp.
+const END_GRACE_MS = 3000;
 
 // Chỉ gửi origin khi chạy trên web thật; mở file trên máy thì không có origin.
 const pageOrigin = () => (/^https?:$/.test(location.protocol) ? location.origin : null);
@@ -1424,7 +1426,7 @@ function ytConfigs(link) {
 //   onPlaying(true | false | null khi không biết), onEnded(), onError(msg), onStatus(text)
 // Trả về hàm dừng / gỡ trình phát.
 function mountPlayer(host, link, events) {
-  const state = { dead: false, destroy: () => {}, timer: 0 };
+  const state = { dead: false, destroy: () => {}, timer: 0, endTimer: 0 };
   const newBox = () => {
     const box = document.createElement('div');
     host.replaceChildren(box);
@@ -1456,6 +1458,7 @@ function mountPlayer(host, link, events) {
   return () => {
     state.dead = true;
     clearTimeout(state.timer);
+    clearTimeout(state.endTimer);
     try {
       state.destroy();
     } catch {
@@ -1492,8 +1495,14 @@ function mountYouTube(YT, newBox, link, events, state) {
     const list = player.getPlaylist?.() || [];
     return { list, idx: player.getPlaylistIndex?.() ?? 0 };
   };
+  const finishTrack = () => {
+    if (ended) return;
+    ended = true;
+    events.onEnded();
+  };
   const onState = (player, e) => {
     clearTimeout(state.timer);
+    clearTimeout(state.endTimer);
     if (e.data === S.PLAYING) {
       skips = 0;
       events.onPlaying(true);
@@ -1504,12 +1513,11 @@ function mountYouTube(YT, newBox, link, events, state) {
       events.onStatus('Đã tạm dừng');
     } else if (e.data === S.ENDED) {
       events.onPlaying(false);
-      // Playlist YouTube tự phát bài tiếp; chỉ chuyển link khi đã hết bài cuối.
-      const { list, idx } = playlistPos(player);
-      if (!ended && (!link.listId || idx >= list.length - 1)) {
-        ended = true;
-        events.onEnded();
-      }
+      if (!link.listId) finishTrack();
+      // Playlist / Mix: YouTube tự phát bài tiếp (trạng thái đổi trong chưa đầy 1 giây).
+      // Chỉ khi trình phát đứng yên đủ lâu mới coi là hết danh sách. Không dựa vào
+      // getPlaylist() vì Mix thường không trả về danh sách.
+      else state.endTimer = setTimeout(finishTrack, END_GRACE_MS);
     } else if (e.data === S.CUED || e.data === S.UNSTARTED) {
       state.timer = setTimeout(() => events.onStatus(PRESS_PLAY), 2500);
     }
@@ -1518,7 +1526,8 @@ function mountYouTube(YT, newBox, link, events, state) {
     const msg = YT_ERRORS[e.data] || `YouTube báo lỗi khi phát (lỗi ${e.data}).`;
     // Trong Mix / playlist: bỏ qua bài bị chặn và phát bài tiếp theo trong danh sách
     const { list, idx } = playlistPos(player);
-    if (link.listId && idx < list.length - 1 && skips < MAX_SKIPS) {
+    const hasNext = list.length === 0 || idx < list.length - 1; // Mix không cho biết độ dài: cứ thử bài tiếp
+    if (link.listId && hasNext && skips < MAX_SKIPS) {
       skips++;
       events.onStatus(`Bỏ qua 1 bài: ${msg} Đang chuyển bài tiếp trong danh sách...`);
       player.nextVideo();
