@@ -18,7 +18,15 @@ Mở app sẽ vào phòng riêng nhìn chéo từ trên cao (isometric 2.5D), c�
 - **Góc âm nhạc** (phía trước bên phải): một bãi cát nhỏ có viền sóng, ghế bãi biển vải sọc, ô che nắng, bàn nhỏ để trái dừa và radio. Bấm ghế hoặc nút **🎧 Nghe nhạc**: nhân vật ngả lưng, hai tay gối sau đầu, đeo tai nghe chụp tai và bịt mắt, lắc lư theo nhịp. Nốt nhạc bay lên, loa radio rung theo.
 - **Góc xem phim** (sát tường bên phải): sofa đặt song song với TV treo tường. Bấm sofa, TV hoặc nút **🍿 Xem phim**: nhân vật nằm nghiêng dọc sofa, chống tay đỡ đầu, quay mặt về TV, tay kia bốc bỏng ngô. TV chiếu 3 cảnh hoạt hình luân phiên, đèn phòng tối đi, ánh TV đổi màu theo cảnh.
 - Đang ngồi hoặc nằm: bấm **⬆️ Đứng dậy**, nhấn E, bấm vào sàn hoặc nhấn phím di chuyển để đứng lên.
-- Hiện chưa phát nhạc hay phim thật, mới có hoạt ảnh.
+- **Nghe nhạc thật**: khi ngồi ghế bãi biển, bảng nhạc hiện ra bên dưới phòng. Bạn có thể:
+  - **Tạo playlist**: đặt tên, rồi thêm link bài hát, album hoặc playlist (mỗi dòng một link, hoặc thêm dần sau).
+  - **Lưu playlist có sẵn từ link**: dán link playlist Spotify / YouTube Music, đặt tên hoặc để app lấy tên gốc.
+  - Đổi tên, xoá playlist, xoá từng link, phát từ bất kỳ link nào, chuyển bài trước / bài tiếp.
+  - Link hỗ trợ: `open.spotify.com/...` (bài hát, album, playlist, podcast, nghệ sĩ), `spotify:...`, `youtube.com/watch`, `youtu.be`, `youtube.com/shorts`, `youtube.com/playlist`, `music.youtube.com/...`.
+  - Nhạc phát bằng trình phát nhúng chính thức, không cần đăng nhập vào app. Với Spotify, ai đang đăng nhập Spotify trên trình duyệt nghe được cả bài, chưa đăng nhập thì chỉ nghe đoạn 30 giây. Với YouTube, ai không có Premium sẽ thấy quảng cáo.
+  - Hết một bài lẻ thì tự chuyển sang link tiếp theo. Nốt nhạc và radio chỉ nhảy khi nhạc đang phát.
+  - Playlist lưu trong trình duyệt (localStorage) cùng với dữ liệu học tập. Đứng dậy khỏi ghế thì nhạc dừng.
+- Góc xem phim hiện mới có hoạt ảnh, chưa phát phim thật.
 - Nút "Bỏ qua" vào menu ngay. Nút 🏫 trên thanh trên cùng đưa về lại phòng.
 - Trên điện thoại, camera phóng gần hơn và bám theo nhân vật.
 
@@ -71,6 +79,7 @@ css/style.css     giao diện (responsive cho điện thoại)
 js/main.js        các màn hình và điều hướng
 js/games.js       logic các trò chơi
 js/classroom.js   phòng riêng isometric, nhân vật, tìm đường (canvas)
+js/music.js       playlist nhạc, nhận diện link, trình phát Spotify / YouTube
 js/parser.js      đọc file docx/txt/csv/json
 js/store.js       lưu trữ, XP, cấp độ, huy hiệu
 js/sample.js      bộ đề mẫu

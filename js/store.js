@@ -8,6 +8,7 @@ const fresh = () => ({
   stats: { xp: 0, answered: 0, correct: 0, bestStreak: 0, games: 0, perfect: 0, days: [] },
   wrong: {}, // bankId -> [questionId]
   scores: {}, // `${bankId}:${mode}` -> [{ score, date }]
+  playlists: [], // { id, name, createdAt, items: [{ id, url, title }] }
 });
 
 let state = load();
@@ -128,6 +129,48 @@ export const BADGES = [
   { id: 'lv5', icon: '⭐', name: 'Cấp 5', desc: 'Đạt cấp độ 5', ok: (s) => levelInfo(s.xp).level >= 5 },
   { id: 'day3', icon: '📅', name: 'Bền bỉ', desc: 'Học 3 ngày liên tiếp', ok: () => dayStreak() >= 3 },
 ];
+
+// ----- Playlist nhạc -----
+export const getPlaylists = () => state.playlists;
+export const getPlaylist = (id) => state.playlists.find((p) => p.id === id);
+
+export function addPlaylist(playlist) {
+  state.playlists.push(playlist);
+  save();
+}
+
+export function renamePlaylist(id, name) {
+  const p = getPlaylist(id);
+  if (!p) return;
+  p.name = name;
+  save();
+}
+
+export function deletePlaylist(id) {
+  state.playlists = state.playlists.filter((p) => p.id !== id);
+  save();
+}
+
+export function addPlaylistItem(id, item) {
+  const p = getPlaylist(id);
+  if (!p) return;
+  p.items.push(item);
+  save();
+}
+
+export function removePlaylistItem(id, itemId) {
+  const p = getPlaylist(id);
+  if (!p) return;
+  p.items = p.items.filter((it) => it.id !== itemId);
+  save();
+}
+
+export function setItemTitle(id, itemId, title) {
+  const it = getPlaylist(id)?.items.find((x) => x.id === itemId);
+  if (!it || !title) return;
+  it.title = title;
+  save();
+}
 
 export function resetAll() {
   state = fresh();
