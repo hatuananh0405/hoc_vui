@@ -3,6 +3,7 @@ import * as store from './store.js';
 import { parseAny, docxToText, TEMPLATES } from './parser.js';
 import { MODES, startGame } from './games.js';
 import { SAMPLE_NAME, SAMPLE_TEXT } from './sample.js';
+import { renderClassroom } from './classroom.js';
 
 const app = $('#app');
 const headerEl = $('#top');
@@ -18,6 +19,7 @@ const MODE_NAMES = { ...Object.fromEntries(Object.entries(MODES).map(([k, v]) =>
 function go(view, params = {}) {
   cleanup();
   cleanup = () => {};
+  app.classList.remove('enter');
   renderHeader();
   VIEWS[view](params);
   window.scrollTo(0, 0);
@@ -29,6 +31,7 @@ function renderHeader() {
   headerEl.innerHTML = `
     <button class="logo" data-act="home">🎓 HọcVui</button>
     <div class="me">
+      <button class="btn ghost small" data-act="classroom" title="Về phòng học" aria-label="Về phòng học">🏫<span class="label"> Phòng học</span></button>
       <span class="chip" title="Số ngày học liên tiếp">🔥 ${streak} ngày</span>
       <span class="chip lvl">Cấp ${l.level}</span>
       <div class="xp" title="${l.xp} / ${l.to} XP"><i style="width:${l.pct}%"></i></div>
@@ -38,7 +41,11 @@ function renderHeader() {
 
 // ---------- Trang chủ ----------
 
-function homeView() {
+function homeView({ enter } = {}) {
+  if (enter) {
+    app.classList.add('enter'); // menu trượt lên sau khi ngồi vào bàn
+    setTimeout(() => app.classList.remove('enter'), 900);
+  }
   const banks = store.getBanks();
   const st = store.getStats();
   const acc = st.answered ? Math.round((st.correct / st.answered) * 100) : 0;
@@ -90,6 +97,12 @@ function homeView() {
 
     ${banks.length || st.games ? `<p class="footer-note"><button class="link danger" data-act="reset">Xóa toàn bộ dữ liệu</button></p>` : ''}
   `;
+}
+
+// ---------- Phòng học (màn mở đầu) ----------
+
+function classroomView() {
+  cleanup = renderClassroom(app, () => go('home', { enter: true }));
 }
 
 // ---------- Thêm bộ đề ----------
@@ -324,6 +337,7 @@ function resultView({ bankId, res, fin }) {
 }
 
 const VIEWS = {
+  classroom: classroomView,
   home: homeView,
   import: importView,
   bank: bankView,
@@ -340,6 +354,8 @@ document.addEventListener('click', (e) => {
   switch (act) {
     case 'home':
       return go('home');
+    case 'classroom':
+      return go('classroom');
     case 'import':
       return go('import');
     case 'sample': {
@@ -393,4 +409,4 @@ document.addEventListener('click', (e) => {
   }
 });
 
-go('home');
+go('classroom');
