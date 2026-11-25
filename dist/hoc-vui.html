@@ -1325,17 +1325,27 @@ async function fetchTitle(link) {
 }
 
 // ---------- Nạp thư viện trình phát (chỉ nạp một lần) ----------
-// Promise này chỉ báo lỗi (mạng hỏng hoặc thư viện không báo sẵn sàng sau 8 giây).
+// Promise này chỉ báo lỗi: 'blocked' khi trình duyệt / mạng chặn tải file,
+// 'timeout' khi tải xong mà thư viện không báo sẵn sàng sau 15 giây.
 // Thư viện báo sẵn sàng qua callback toàn cục riêng của nó.
 function loadScript(src) {
   return new Promise((_, reject) => {
     const s = document.createElement('script');
     s.src = src;
     s.async = true;
-    s.onerror = () => reject(new Error('Không tải được ' + src));
+    s.onerror = () => reject(new Error('blocked'));
+    s.onload = () => setTimeout(() => reject(new Error('timeout')), 15000);
     document.head.appendChild(s);
-    s.onload = () => setTimeout(() => reject(new Error('timeout')), 8000);
   });
+}
+
+// Giải thích vì sao phải dùng trình phát dự phòng
+function fallbackReason(err, name) {
+  if (err?.message === 'blocked') {
+    return `Trình duyệt hoặc mạng đã chặn tải thư viện ${name}. Thường do tiện ích chặn quảng cáo, chế độ chống theo dõi nghiêm ngặt, hoặc mạng trường / công ty.`;
+  }
+  if (err?.message === 'timeout') return `Thư viện ${name} tải quá lâu không phản hồi.`;
+  return `Trình phát ${name} gặp lỗi: ${err?.message || err}.`;
 }
 
 let ytPromise = null;
@@ -1412,23 +1422,25 @@ function mountPlayer(host, link, events) {
   host.replaceChildren(box);
   events.onStatus('Đang tải trình phát...');
 
-  const fallback = (src, title) => {
+  const fallback = (src, title, err, name) => {
     if (state.dead) return;
+    console.warn('[HọcVui] Dùng trình phát dự phòng:', err);
     box.replaceWith(frame(src, title));
     events.onPlaying(null);
-    events.onStatus('Đang dùng trình phát dự phòng. ' + PRESS_PLAY);
+    events.onStatus(`Đang dùng trình phát dự phòng. ${fallbackReason(err, name)} ${PRESS_PLAY}`);
+    events.onFallback?.();
   };
 
   if (link.kind === 'youtube') {
     loadYouTube()
       .then((YT) => mountYouTube(YT, box, link, events, state))
-      .catch(() => fallback(youtubeEmbedSrc(link), 'Trình phát YouTube'));
+      .catch((err) => fallback(youtubeEmbedSrc(link), 'Trình phát YouTube', err, 'YouTube'));
   } else {
     const height = link.type === 'track' || link.type === 'episode' ? 152 : 352;
     host.style.setProperty('--mp-h', height + 'px');
     loadSpotify()
       .then((api) => mountSpotify(api, box, link, height, events, state))
-      .catch(() => fallback(`https://open.spotify.com/embed/${link.type}/${link.id}`, 'Trình phát Spotify'));
+      .catch((err) => fallback(`https://open.spotify.com/embed/${link.type}/${link.id}`, 'Trình phát Spotify', err, 'Spotify'));
   }
 
   return () => {
@@ -1581,6 +1593,7 @@ function createMusicPanel(root, { onPlaying = () => {} } = {}) {
         <button class="btn small" data-mp="prev">⏮ Bài trước</button>
         <button class="btn small" data-mp="next">Bài tiếp ⏭</button>
         <button class="btn small" data-mp="stop">⏹ Dừng</button>
+        <button class="btn small" data-mp="retry">🔄 Thử lại</button>
       </div>
     </div>
     <div class="mp-body"></div>`;
@@ -1780,6 +1793,7 @@ function createMusicPanel(root, { onPlaying = () => {} } = {}) {
   // Các nút bấm trong bảng nhạc (data-mp="...")
   const ACTIONS = {
     prev: () => step(-1),
+    retry: () => step(0),
     next: () => step(1),
     stop: () => stop(),
     play: (d) => {
@@ -1801,7 +1815,7 @@ function createMusicPanel(root, { onPlaying = () => {} } = {}) {
       renderBody();
     },
   };
-  const PLAYER_ACTIONS = new Set(['prev', 'next', 'stop']);
+  const PLAYER_ACTIONS = new Set(['prev', 'next', 'stop', 'retry']);
 
   function onClick(e) {
     const el = e.target.closest('[data-mp]');
