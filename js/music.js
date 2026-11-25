@@ -12,6 +12,9 @@ const SPOTIFY_ID = /^[A-Za-z0-9]{10,40}$/;
 const YT_VIDEO = /^[A-Za-z0-9_-]{11}$/;
 const YT_LIST = /^[A-Za-z0-9_-]{10,64}$/;
 const YT_PATH = /^\/(?:embed|shorts|live)\/([^/?#]+)/;
+// Mix của YouTube có ID dạng "RD" + ID video gốc (YouTube Music: "RDAMVM" + ID video).
+// Trình phát nhúng không mở được Mix nếu thiếu video bắt đầu, nên tách video gốc ra.
+const YT_MIX = /^RD(?:AMVM|AMPL)?([A-Za-z0-9_-]{11})$/;
 
 // ---------- Nhận diện link ----------
 // Trả về null nếu không phải link Spotify / YouTube hợp lệ. Chỉ giữ lại ID đã kiểm tra,
@@ -51,11 +54,14 @@ function youtubeVideoId(u, host) {
 function parseYouTubeUrl(u, host) {
   const v = youtubeVideoId(u, host);
   const list = u.searchParams.get('list');
-  const videoId = v && YT_VIDEO.test(v) ? v : null;
   const listId = list && YT_LIST.test(list) ? list : null;
+  const seed = listId ? YT_MIX.exec(listId)?.[1] : undefined;
+  const mix = Boolean(seed);
+  const videoId = (v && YT_VIDEO.test(v) ? v : null) ?? seed ?? null;
   if (!videoId && !listId) return null;
-  const label = videoId ? 'Video YouTube' : 'Playlist YouTube';
-  return { kind: 'youtube', videoId, listId, label, url: youtubeUrl(videoId, listId) };
+  let label = videoId ? 'Video YouTube' : 'Playlist YouTube';
+  if (mix) label = 'Mix YouTube';
+  return { kind: 'youtube', videoId, listId, mix, label, url: youtubeUrl(videoId, listId) };
 }
 
 function youtubeUrl(videoId, listId) {
@@ -178,7 +184,9 @@ function mountPlayer(host, link, events) {
             },
             onError: (e) => {
               const msg = { 2: 'Link không hợp lệ.', 5: 'Video không phát được trên trình duyệt này.', 100: 'Video đã bị xoá hoặc để riêng tư.', 101: 'Chủ video không cho phát nhúng.', 150: 'Chủ video không cho phát nhúng.' }[e.data];
-              events.onError(msg || 'YouTube báo lỗi khi phát.');
+              // Một số playlist tự động của YouTube (Mix) không phát nhúng được khi thiếu video bắt đầu
+              const mixHint = link.listId?.startsWith('RD') && !link.videoId ? ' Đây là Mix tự động của YouTube, hãy mở một bài trong Mix rồi dán link bài đó.' : '';
+              events.onError((msg || 'YouTube báo lỗi khi phát.') + mixHint);
             },
           },
         });
