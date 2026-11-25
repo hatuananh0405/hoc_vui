@@ -24,7 +24,9 @@ Mở app sẽ vào phòng riêng nhìn chéo từ trên cao (isometric 2.5D), c�
   - Đổi tên, xoá playlist, xoá từng link, phát từ bất kỳ link nào, chuyển bài trước / bài tiếp.
   - Link hỗ trợ: `open.spotify.com/...` (bài hát, album, playlist, podcast, nghệ sĩ), `spotify:...`, `youtube.com/watch`, `youtu.be`, `youtube.com/shorts`, `youtube.com/playlist`, `music.youtube.com/...`.
   - Nhạc phát bằng trình phát nhúng chính thức, không cần đăng nhập vào app. Với Spotify, ai đang đăng nhập Spotify trên trình duyệt nghe được cả bài, chưa đăng nhập thì chỉ nghe đoạn 30 giây. Với YouTube, ai không có Premium sẽ thấy quảng cáo.
-  - Hết một bài lẻ thì tự chuyển sang link tiếp theo. Nốt nhạc và radio chỉ nhảy khi nhạc đang phát.
+  - **Bài trước / Bài tiếp**: nếu link đang phát là playlist YouTube thì chuyển bài ngay trong playlist đó. Nếu YouTube không đổi bài thì sang link khác của playlist trong app.
+  - Hết một bài lẻ thì tự chuyển sang link tiếp theo. Hết link cuối thì dừng và báo đã phát hết, không quay về bài đầu. Nốt nhạc và radio chỉ nhảy khi nhạc đang phát.
+  - **Mix tự động của YouTube** (link có `list=RD...`) có thể chỉ phát được bài đầu trong trình phát nhúng. Khi gặp trường hợp này, app hiện cảnh báo. Muốn nghe nhiều bài, hãy thêm từng bài vào playlist của app hoặc dùng playlist thường của YouTube.
   - Playlist lưu trong trình duyệt (localStorage) cùng với dữ liệu học tập. Đứng dậy khỏi ghế thì nhạc dừng.
 - Góc xem phim hiện mới có hoạt ảnh, chưa phát phim thật.
 - Nút "Bỏ qua" vào menu ngay. Nút 🏫 trên thanh trên cùng đưa về lại phòng.

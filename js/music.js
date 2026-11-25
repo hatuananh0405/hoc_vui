@@ -174,6 +174,11 @@ const PRESS_PLAY = 'Nếu nhạc chưa chạy, bấm nút ▶ ngay trong khung t
 const MAX_SKIPS = 8;
 // Sau khi một bài trong playlist / Mix kết thúc, đợi chừng này để YouTube tự chuyển bài tiếp.
 const END_GRACE_MS = 3000;
+// Bấm Bài tiếp / Bài trước mà YouTube không đổi bài trong chừng này thì chuyển link của app.
+const NAV_WAIT_MS = 2500;
+const MIX_SINGLE =
+  'YouTube từ chối mở danh sách này trong trình phát nhúng, nên chỉ phát được bài đầu. ' +
+  'Muốn nghe nhiều bài, hãy thêm từng bài vào playlist của app, hoặc dùng playlist thường của YouTube.';
 
 // Chỉ gửi origin khi chạy trên web thật; mở file trên máy thì không có origin.
 const pageOrigin = () => (/^https?:$/.test(location.protocol) ? location.origin : null);
@@ -203,7 +208,7 @@ function ytConfigs(link) {
 //   onPlaying(true | false | null khi không biết), onEnded(), onError(msg), onStatus(text)
 // Trả về hàm dừng / gỡ trình phát.
 function mountPlayer(host, link, events) {
-  const state = { dead: false, destroy: () => {}, timer: 0, endTimer: 0 };
+  const state = { dead: false, destroy: () => {}, timer: 0, endTimer: 0, navTimer: 0, nav: () => false };
   const newBox = () => {
     const box = document.createElement('div');
     host.replaceChildren(box);
@@ -232,10 +237,11 @@ function mountPlayer(host, link, events) {
       .catch((err) => fallback(`https://open.spotify.com/embed/${link.type}/${link.id}`, 'Trình phát Spotify', err, 'Spotify'));
   }
 
-  return () => {
+  const cleanup = () => {
     state.dead = true;
     clearTimeout(state.timer);
     clearTimeout(state.endTimer);
+    clearTimeout(state.navTimer);
     try {
       state.destroy();
     } catch {
@@ -244,6 +250,9 @@ function mountPlayer(host, link, events) {
     host.replaceChildren();
     host.style.removeProperty('--mp-h');
   };
+  // Chuyển bài ngay trong danh sách của trình phát. Trả về false nếu không làm được.
+  cleanup.nav = (dir) => state.nav(dir);
+  return cleanup;
 }
 
 // Tạo trình phát YouTube, thử từng cấu hình. Mỗi lần thử dùng một khung mới vì
@@ -253,7 +262,8 @@ function createYouTubePlayer(YT, newBox, link, handlers) {
   let lastErr = null;
   for (const cfg of ytConfigs(link)) {
     try {
-      return new YT.Player(newBox(), { width: '100%', height: '100%', ...cfg, events: handlers });
+      const player = new YT.Player(newBox(), { width: '100%', height: '100%', ...cfg, events: handlers });
+      return { player, full: Boolean(cfg.playerVars.list) };
     } catch (err) {
       lastErr = err;
       console.warn('[HọcVui] YouTube từ chối cấu hình', cfg, err);
@@ -268,6 +278,7 @@ function mountYouTube(YT, newBox, link, events, state) {
   const S = YT.PlayerState;
   let ended = false;
   let skips = 0;
+  let full = false; // true khi YouTube nhận cấu hình có danh sách (Mix / playlist)
   const playlistPos = (player) => {
     const list = player.getPlaylist?.() || [];
     return { list, idx: player.getPlaylistIndex?.() ?? 0 };
@@ -280,6 +291,7 @@ function mountYouTube(YT, newBox, link, events, state) {
   const onState = (player, e) => {
     clearTimeout(state.timer);
     clearTimeout(state.endTimer);
+    if ([S.UNSTARTED, S.BUFFERING, S.PLAYING].includes(e.data)) clearTimeout(state.navTimer);
     if (e.data === S.PLAYING) {
       skips = 0;
       events.onPlaying(true);
@@ -290,7 +302,7 @@ function mountYouTube(YT, newBox, link, events, state) {
       events.onStatus('Đã tạm dừng');
     } else if (e.data === S.ENDED) {
       events.onPlaying(false);
-      if (!link.listId) finishTrack();
+      if (!full) finishTrack();
       // Playlist / Mix: YouTube tự phát bài tiếp (trạng thái đổi trong chưa đầy 1 giây).
       // Chỉ khi trình phát đứng yên đủ lâu mới coi là hết danh sách. Không dựa vào
       // getPlaylist() vì Mix thường không trả về danh sách.
@@ -304,7 +316,7 @@ function mountYouTube(YT, newBox, link, events, state) {
     // Trong Mix / playlist: bỏ qua bài bị chặn và phát bài tiếp theo trong danh sách
     const { list, idx } = playlistPos(player);
     const hasNext = list.length === 0 || idx < list.length - 1; // Mix không cho biết độ dài: cứ thử bài tiếp
-    if (link.listId && hasNext && skips < MAX_SKIPS) {
+    if (full && hasNext && skips < MAX_SKIPS) {
       skips++;
       events.onStatus(`Bỏ qua 1 bài: ${msg} Đang chuyển bài tiếp trong danh sách...`);
       player.nextVideo();
@@ -312,7 +324,7 @@ function mountYouTube(YT, newBox, link, events, state) {
     }
     events.onError(msg);
   };
-  const player = createYouTubePlayer(YT, newBox, link, {
+  const created = createYouTubePlayer(YT, newBox, link, {
     onReady: () => {
       events.onStatus('Trình phát đã sẵn sàng.');
       state.timer = setTimeout(() => events.onStatus(PRESS_PLAY), 2500);
@@ -320,6 +332,17 @@ function mountYouTube(YT, newBox, link, events, state) {
     onStateChange: (e) => onState(player, e),
     onError: (e) => onError(player, e),
   });
+  const player = created.player;
+  full = created.full;
+  if (link.listId && !full) events.onWarn(MIX_SINGLE);
+  state.nav = (dir) => {
+    if (!full) return false;
+    clearTimeout(state.navTimer);
+    state.navTimer = setTimeout(() => events.onNavFail(dir), NAV_WAIT_MS);
+    if (dir > 0) player.nextVideo();
+    else player.previousVideo();
+    return true;
+  };
   state.destroy = () => {
     player.destroy?.();
   };
@@ -419,6 +442,7 @@ export function createMusicPanel(root, { onPlaying = () => {} } = {}) {
   let unmount = null;
   let error = '';
   let draft = {}; // giữ lại chữ đã gõ khi form báo lỗi
+  let note = ''; // thông báo ở đầu danh sách (ví dụ: đã phát hết playlist)
   let msgTimer = 0;
   let gone = false;
 
@@ -473,7 +497,13 @@ export function createMusicPanel(root, { onPlaying = () => {} } = {}) {
         if (!gone) statusEl.textContent = text;
       },
       onEnded: () => {
-        if (!gone) step(1);
+        if (!gone) advance();
+      },
+      onWarn: (text) => {
+        if (!gone) showMsg(text);
+      },
+      onNavFail: (dir) => {
+        if (!gone) step(dir);
       },
       onError: (msg) => {
         if (gone) return;
@@ -482,6 +512,24 @@ export function createMusicPanel(root, { onPlaying = () => {} } = {}) {
         if (many) msgTimer = setTimeout(() => step(1), 2500);
       },
     });
+  }
+
+  // Hết bài tự động: sang link kế tiếp, hết link cuối thì dừng (không quay lại bài đầu).
+  function advance() {
+    const p = current && store.getPlaylist(current.pid);
+    if (p && current.index < p.items.length - 1) {
+      step(1);
+      return;
+    }
+    note = p ? `Đã phát hết playlist "${p.name}". Bấm ▶ Phát để nghe lại từ đầu.` : '';
+    stop();
+  }
+
+  // Bài tiếp / Bài trước: ưu tiên chuyển bài ngay trong playlist YouTube đang phát,
+  // không được thì mới sang link khác của app.
+  function navOrStep(d) {
+    if (unmount?.nav?.(d)) return;
+    step(d);
   }
 
   function step(d) {
@@ -512,6 +560,7 @@ export function createMusicPanel(root, { onPlaying = () => {} } = {}) {
     if (gone) return;
     const lists = store.getPlaylists();
     const err = error ? `<div class="mp-err">${esc(error)}</div>` : '';
+    const noteHtml = note ? `<div class="mp-note">✅ ${esc(note)}</div>` : '';
     if (mode === 'new') {
       body.innerHTML = `
         <form class="mp-form" data-form="new">
@@ -538,6 +587,7 @@ export function createMusicPanel(root, { onPlaying = () => {} } = {}) {
       return;
     }
     body.innerHTML = `
+      ${noteHtml}
       <div class="row">
         <button class="btn small primary" data-mp="new">＋ Tạo playlist</button>
         <button class="btn small" data-mp="save">🔗 Lưu playlist từ link</button>
@@ -599,9 +649,9 @@ export function createMusicPanel(root, { onPlaying = () => {} } = {}) {
 
   // Các nút bấm trong bảng nhạc (data-mp="...")
   const ACTIONS = {
-    prev: () => step(-1),
+    prev: () => navOrStep(-1),
     retry: () => step(0),
-    next: () => step(1),
+    next: () => navOrStep(1),
     stop: () => stop(),
     play: (d) => {
       openId = d.id;
@@ -629,6 +679,7 @@ export function createMusicPanel(root, { onPlaying = () => {} } = {}) {
     const action = el && ACTIONS[el.dataset.mp];
     if (!action) return;
     error = '';
+    note = '';
     if (!PLAYER_ACTIONS.has(el.dataset.mp)) draft = {};
     action(el.dataset);
   }
