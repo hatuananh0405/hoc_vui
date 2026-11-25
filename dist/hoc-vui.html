@@ -1,0 +1,1495 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>HọcVui - Vừa chơi vừa học</title>
+    <style>
+:root {
+  --bg: #f4f5fb;
+  --card: #ffffff;
+  --text: #1f2340;
+  --muted: #6b7090;
+  --primary: #5b5bf0;
+  --primary-d: #4343d6;
+  --good: #1fa971;
+  --good-bg: #e3f7ee;
+  --bad: #e5484d;
+  --bad-bg: #fdeaea;
+  --gold: #f5a524;
+  --border: #e3e5f1;
+  --radius: 14px;
+}
+
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.5;
+}
+main { max-width: 920px; margin: 0 auto; padding: 20px 16px 60px; }
+h1 { font-size: 1.7rem; margin: 8px 0; }
+h2 { font-size: 1.2rem; margin: 28px 0 12px; }
+p { margin: 6px 0; }
+code { background: #eceefb; padding: 1px 6px; border-radius: 6px; font-size: .9em; }
+.muted { color: var(--muted); font-size: .92rem; }
+.row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+.row.center { justify-content: center; margin: 18px 0; }
+
+/* Header */
+.top {
+  position: sticky; top: 0; z-index: 10;
+  display: flex; justify-content: space-between; align-items: center; gap: 10px;
+  padding: 10px 16px; background: rgba(255,255,255,.92); backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--border);
+}
+.logo { background: none; border: 0; font-size: 1.2rem; font-weight: 800; color: var(--primary); cursor: pointer; }
+.me { display: flex; align-items: center; gap: 8px; }
+.me small { color: var(--muted); }
+.chip { background: #eef; padding: 3px 10px; border-radius: 99px; font-size: .85rem; font-weight: 600; }
+.chip.lvl { background: var(--primary); color: #fff; }
+.xp { width: 80px; height: 8px; background: #e4e6f5; border-radius: 99px; overflow: hidden; }
+.xp i { display: block; height: 100%; background: linear-gradient(90deg, #7c7cf8, var(--gold)); }
+
+/* Buttons */
+.btn {
+  display: inline-block; padding: 10px 18px; border-radius: 12px; border: 1px solid var(--border);
+  background: #fff; color: var(--text); font: inherit; font-weight: 600; cursor: pointer;
+  transition: transform .08s, background .15s, box-shadow .15s;
+}
+.btn:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(40,40,100,.12); }
+.btn:disabled { opacity: .5; cursor: not-allowed; }
+.btn.primary { background: var(--primary); border-color: var(--primary); color: #fff; }
+.btn.primary:hover:not(:disabled) { background: var(--primary-d); }
+.btn.big { padding: 14px 26px; font-size: 1.05rem; }
+.btn.small { padding: 6px 12px; font-size: .88rem; }
+.btn.ghost { background: transparent; }
+.btn.danger, .link.danger { color: var(--bad); }
+.link { background: none; border: 0; color: var(--primary); font: inherit; cursor: pointer; padding: 4px 0; }
+.link:hover { text-decoration: underline; }
+
+/* Cards & grids */
+.card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; box-shadow: 0 1px 3px rgba(40,40,100,.05); }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 14px; }
+.hero { text-align: center; padding: 28px 12px 8px; }
+.hero .row { justify-content: center; margin-top: 16px; }
+.empty { text-align: center; color: var(--muted); }
+.bank { text-align: left; cursor: pointer; font: inherit; color: inherit; transition: transform .1s, box-shadow .15s; }
+.bank:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(40,40,100,.12); }
+.bank-title { font-weight: 700; margin-bottom: 4px; word-break: break-word; }
+.tag { display: inline-block; margin-top: 8px; background: #fff4dd; color: #8a5a00; padding: 2px 10px; border-radius: 99px; font-size: .82rem; font-weight: 600; }
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 12px; }
+.stat { text-align: center; }
+.stat b { display: block; font-size: 1.6rem; color: var(--primary); }
+.stat span { color: var(--muted); font-size: .85rem; }
+.badges { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
+.badge { text-align: center; }
+.badge .ico { font-size: 2rem; }
+.badge span { display: block; color: var(--muted); font-size: .8rem; }
+.badge.locked { opacity: .4; filter: grayscale(1); }
+.footer-note { text-align: center; margin-top: 30px; }
+
+/* Bank view */
+.bank-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
+.modes .mode { display: flex; flex-direction: column; gap: 6px; }
+.mode .ico { font-size: 2rem; }
+.mode p { flex: 1; margin: 0; }
+.mode.disabled { opacity: .6; }
+.inline { font-size: .9rem; color: var(--muted); }
+select, input[type=text], textarea {
+  font: inherit; padding: 8px 10px; border: 1px solid var(--border); border-radius: 10px; background: #fff; color: var(--text); width: 100%;
+}
+.inline select { width: auto; margin-left: 6px; padding: 4px 8px; }
+.review { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin: 14px 0; background: #fff9ec; border-color: #f3dca6; flex-wrap: wrap; }
+.qlist { padding-left: 20px; margin: 10px 0 0; }
+.qlist li { margin-bottom: 8px; }
+.qrow { display: flex; justify-content: space-between; gap: 10px; }
+details.card { margin-top: 24px; }
+summary { cursor: pointer; font-weight: 600; }
+
+/* Import */
+.form { display: flex; flex-direction: column; gap: 14px; }
+.form label { display: flex; flex-direction: column; gap: 6px; font-weight: 600; }
+.drop { border: 2px dashed #b9bbea; border-radius: var(--radius); padding: 22px; text-align: center; background: #fafaff; transition: background .15s; }
+.drop.over { background: #ececff; border-color: var(--primary); }
+.drop label { display: inline-block; flex-direction: unset; }
+textarea { resize: vertical; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: .9rem; }
+.preview { padding: 10px 14px; border-radius: 10px; }
+.preview.ok { background: var(--good-bg); }
+.preview.err { background: var(--bad-bg); }
+.preview ul { margin: 6px 0 0; padding-left: 20px; font-size: .9rem; }
+.guide p { margin: 10px 0; }
+
+/* Game */
+.game { max-width: 720px; margin: 0 auto; }
+.hud { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 8px; }
+.hud-item { background: #fff; border: 1px solid var(--border); padding: 4px 12px; border-radius: 99px; font-weight: 700; }
+.hud .btn { margin-right: auto; }
+.bar { height: 10px; background: #e0e2f3; border-radius: 99px; overflow: hidden; margin-bottom: 18px; }
+.bar-fill { height: 100%; background: linear-gradient(90deg, var(--primary), #8e8ef9); transition: width .25s linear; }
+.question { padding: 22px 20px; margin-bottom: 14px; }
+.qtext { font-size: 1.2rem; font-weight: 600; margin: 0; word-break: break-word; }
+.options { display: grid; gap: 10px; }
+.opt {
+  display: flex; align-items: center; gap: 12px; text-align: left; padding: 14px 16px; font: inherit; color: inherit;
+  background: #fff; border: 2px solid var(--border); border-radius: 12px; cursor: pointer; transition: border-color .12s, transform .08s, background .12s;
+}
+.opt:hover:not(:disabled) { border-color: var(--primary); transform: translateX(3px); }
+.opt:disabled { cursor: default; }
+.opt .key { flex: none; width: 28px; height: 28px; border-radius: 8px; background: #eceefb; display: grid; place-items: center; font-weight: 700; font-size: .85rem; }
+.opt.correct { border-color: var(--good); background: var(--good-bg); }
+.opt.wrong { border-color: var(--bad); background: var(--bad-bg); }
+.feedback { margin-top: 14px; padding: 14px 16px; border-radius: 12px; display: flex; flex-direction: column; gap: 6px; animation: pop .2s; }
+.feedback.good { background: var(--good-bg); border: 1px solid #b6e6d0; }
+.feedback.bad { background: var(--bad-bg); border: 1px solid #f3c0c2; }
+.feedback .btn { align-self: flex-start; margin-top: 6px; }
+.expl { color: #3a3f6b; font-size: .95rem; }
+@keyframes pop { from { transform: scale(.97); opacity: 0; } to { transform: none; opacity: 1; } }
+
+/* Matching */
+.hint { text-align: center; color: var(--muted); }
+.hint.pulse { color: var(--bad); font-weight: 700; }
+.match { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.col { display: flex; flex-direction: column; gap: 10px; }
+.tile { padding: 12px; font: inherit; color: inherit; background: #fff; border: 2px solid var(--border); border-radius: 12px; cursor: pointer; text-align: left; min-height: 56px; transition: all .12s; word-break: break-word; }
+.tile:hover:not(.done) { border-color: var(--primary); }
+.tile.selected { border-color: var(--primary); background: #eeeeff; box-shadow: 0 0 0 3px rgba(91,91,240,.2); }
+.tile.done { border-color: var(--good); background: var(--good-bg); opacity: .65; cursor: default; }
+.tile.shake { border-color: var(--bad); background: var(--bad-bg); animation: shake .4s; }
+@keyframes shake { 20%, 60% { transform: translateX(-6px); } 40%, 80% { transform: translateX(6px); } }
+
+/* Result */
+.result { text-align: center; }
+.big-emoji { font-size: 4rem; }
+.banner { display: inline-block; margin: 6px 4px 14px; padding: 6px 16px; border-radius: 99px; background: var(--primary); color: #fff; font-weight: 700; }
+.banner.gold { background: var(--gold); }
+.wrong-list { display: grid; gap: 12px; text-align: left; }
+.good-line { color: var(--good); font-weight: 700; margin-top: 6px; }
+
+@media (max-width: 560px) {
+  h1 { font-size: 1.4rem; }
+  .xp { display: none; }
+  .match { gap: 8px; }
+  .tile { font-size: .9rem; padding: 10px; }
+}
+
+</style>
+  </head>
+  <body>
+    <header id="top" class="top"></header>
+    <main id="app"></main>
+    <noscript>Ứng dụng cần bật JavaScript.</noscript>
+    <script>
+const __m_util = (() => {
+const $ = (sel, root = document) => root.querySelector(sel);
+const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
+
+function esc(s) {
+  return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+function shuffle(arr) {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
+
+function download(filename, text, type = 'text/plain') {
+  const url = URL.createObjectURL(new Blob([text], { type: type + ';charset=utf-8' }));
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+const today = () => new Date().toISOString().slice(0, 10);
+
+return { $, $$, esc, shuffle, uid, download, today };
+})();
+
+const __m_store = (() => {
+// Lưu toàn bộ dữ liệu trong localStorage của trình duyệt.
+const { today } = __m_util;
+
+const KEY = 'hocvui.v1';
+
+const fresh = () => ({
+  banks: [], // { id, name, createdAt, questions: [...] }
+  stats: { xp: 0, answered: 0, correct: 0, bestStreak: 0, games: 0, perfect: 0, days: [] },
+  wrong: {}, // bankId -> [questionId]
+  scores: {}, // `${bankId}:${mode}` -> [{ score, date }]
+});
+
+let state = load();
+
+function load() {
+  try {
+    const s = JSON.parse(localStorage.getItem(KEY));
+    if (s && Array.isArray(s.banks)) return { ...fresh(), ...s, stats: { ...fresh().stats, ...s.stats } };
+  } catch {
+    /* dữ liệu hỏng hoặc chưa có */
+  }
+  return fresh();
+}
+
+function save() {
+  try {
+    localStorage.setItem(KEY, JSON.stringify(state));
+  } catch (e) {
+    alert('Không lưu được dữ liệu (bộ nhớ trình duyệt đầy?): ' + e.message);
+  }
+}
+
+// ----- Bộ đề -----
+const getBanks = () => state.banks;
+const getBank = (id) => state.banks.find((b) => b.id === id);
+
+function addBank(bank) {
+  state.banks.push(bank);
+  save();
+}
+
+function deleteBank(id) {
+  state.banks = state.banks.filter((b) => b.id !== id);
+  delete state.wrong[id];
+  for (const k of Object.keys(state.scores)) if (k.startsWith(id + ':')) delete state.scores[k];
+  save();
+}
+
+function deleteQuestion(bankId, qid) {
+  const b = getBank(bankId);
+  if (!b) return;
+  b.questions = b.questions.filter((q) => q.id !== qid);
+  state.wrong[bankId] = (state.wrong[bankId] || []).filter((x) => x !== qid);
+  save();
+}
+
+// ----- Tiến độ -----
+const getStats = () => state.stats;
+
+function recordAnswer(bankId, qid, ok, streak) {
+  const s = state.stats;
+  s.answered++;
+  if (ok) s.correct++;
+  s.bestStreak = Math.max(s.bestStreak, streak);
+  const list = state.wrong[bankId] || (state.wrong[bankId] = []);
+  const i = list.indexOf(qid);
+  if (!ok && i < 0) list.push(qid);
+  if (ok && i >= 0) list.splice(i, 1); // trả lời đúng thì khỏi cần ôn nữa
+  save();
+}
+
+const getWrongIds = (bankId) => state.wrong[bankId] || [];
+
+// XP và cấp độ: cần 50 * (cấp - 1)^2 XP để đạt một cấp.
+const xpFor = (level) => 50 * (level - 1) ** 2;
+function levelInfo(xp = state.stats.xp) {
+  const level = Math.floor(Math.sqrt(xp / 50)) + 1;
+  const from = xpFor(level);
+  const to = xpFor(level + 1);
+  return { level, xp, from, to, pct: Math.round(((xp - from) / (to - from)) * 100) };
+}
+
+// Trả về { gained, leveledUp, newLevel, record }
+function finishGame({ bankId, mode, score, correct, total, bestStreak }) {
+  const before = levelInfo().level;
+  const s = state.stats;
+  const isPerfect = total >= 5 && correct === total; // ván quá ngắn không tính "hoàn hảo"
+  const gained = correct * 10 + bestStreak * 2 + (isPerfect ? 20 : 0);
+  s.xp += gained;
+  s.games++;
+  if (isPerfect) s.perfect++;
+  const d = today();
+  if (!s.days.includes(d)) s.days = [...s.days, d].slice(-400);
+
+  const key = `${bankId}:${mode}`;
+  const list = state.scores[key] || (state.scores[key] = []);
+  const prevBest = list.length ? Math.max(...list.map((x) => x.score)) : 0;
+  list.push({ score, date: d });
+  list.sort((a, b) => b.score - a.score);
+  state.scores[key] = list.slice(0, 5);
+  save();
+
+  const after = levelInfo().level;
+  return { gained, leveledUp: after > before, newLevel: after, record: score > prevBest && score > 0 };
+}
+
+const getScores = (bankId, mode) => state.scores[`${bankId}:${mode}`] || [];
+
+// Số ngày liên tiếp có học (tính đến hôm nay hoặc hôm qua)
+function dayStreak() {
+  const days = new Set(state.stats.days);
+  const d = new Date();
+  const fmt = (x) => x.toISOString().slice(0, 10);
+  if (!days.has(fmt(d))) d.setDate(d.getDate() - 1);
+  let n = 0;
+  while (days.has(fmt(d))) {
+    n++;
+    d.setDate(d.getDate() - 1);
+  }
+  return n;
+}
+
+const BADGES = [
+  { id: 'first', icon: '🎮', name: 'Khởi đầu', desc: 'Hoàn thành 1 ván chơi', ok: (s) => s.games >= 1 },
+  { id: 'c100', icon: '🎯', name: 'Chăm chỉ', desc: 'Trả lời đúng 100 câu', ok: (s) => s.correct >= 100 },
+  { id: 'st10', icon: '🔥', name: 'Chuỗi lửa', desc: 'Đúng liên tiếp 10 câu', ok: (s) => s.bestStreak >= 10 },
+  { id: 'perf', icon: '💯', name: 'Hoàn hảo', desc: 'Một ván đúng toàn bộ', ok: (s) => s.perfect >= 1 },
+  { id: 'lv5', icon: '⭐', name: 'Cấp 5', desc: 'Đạt cấp độ 5', ok: (s) => levelInfo(s.xp).level >= 5 },
+  { id: 'day3', icon: '📅', name: 'Bền bỉ', desc: 'Học 3 ngày liên tiếp', ok: () => dayStreak() >= 3 },
+];
+
+function resetAll() {
+  state = fresh();
+  save();
+}
+
+return { getBanks, getBank, addBank, deleteBank, deleteQuestion, getStats, recordAnswer, getWrongIds, levelInfo, finishGame, getScores, dayStreak, BADGES, resetAll };
+})();
+
+const __m_parser = (() => {
+// Đọc bộ đề từ JSON / CSV / TXT / DOCX và chuẩn hóa thành:
+// { questions: [{ id, q, options: string[], answer: number (0-based), explanation }], errors: string[] }
+
+const { uid } = __m_util;
+
+const LETTERS = 'ABCDEFGH';
+
+// ---------- Chuẩn hóa & kiểm tra ----------
+
+function resolveAnswer(val, options) {
+  if (val === null || val === undefined) return -1;
+  const s = String(val).trim();
+  if (!s) return -1;
+  if (/^[A-Ha-h]$/.test(s)) return LETTERS.indexOf(s.toUpperCase());
+  if (/^\d+$/.test(s)) return Number(s) - 1; // số được hiểu là thứ tự bắt đầu từ 1
+  const norm = (x) => String(x).trim().toLowerCase().replace(/[.\s]+$/, '');
+  return options.findIndex((o) => norm(o) === norm(s));
+}
+
+function finalize(raws) {
+  const questions = [];
+  const errors = [];
+  raws.forEach((r, i) => {
+    const label = `Câu ${i + 1}`;
+    const q = String(r.q ?? '').trim();
+    const options = (r.options || []).map((o) => String(o ?? '').trim()).filter(Boolean);
+    if (!q) return errors.push(`${label}: thiếu nội dung câu hỏi`);
+    if (options.length < 2) return errors.push(`${label}: cần ít nhất 2 đáp án`);
+    if (options.length > 8) return errors.push(`${label}: tối đa 8 đáp án`);
+    let answer = typeof r.answer === 'number' ? r.answer : resolveAnswer(r.answer, options);
+    if (answer < 0 || answer >= options.length) {
+      return errors.push(`${label}: không xác định được đáp án đúng ("${q.slice(0, 40)}")`);
+    }
+    questions.push({
+      id: uid(),
+      q,
+      options,
+      answer,
+      explanation: String(r.explanation ?? '').trim(),
+    });
+  });
+  return { questions, errors };
+}
+
+// ---------- JSON ----------
+
+function parseJSON(text) {
+  let data;
+  try {
+    data = JSON.parse(text);
+  } catch (e) {
+    return { questions: [], errors: ['File JSON không hợp lệ: ' + e.message] };
+  }
+  const list = Array.isArray(data) ? data : data.questions;
+  if (!Array.isArray(list)) return { questions: [], errors: ['JSON cần là một mảng câu hỏi hoặc { "questions": [...] }'] };
+  return finalize(
+    list.map((it) => ({
+      q: it.question ?? it.q ?? it.cauHoi ?? it['câu hỏi'],
+      options: it.options ?? it.choices ?? it.answers ?? it['đáp án'] ?? [],
+      answer: it.answer ?? it.correct ?? it['đáp án đúng'],
+      explanation: it.explanation ?? it.explain ?? it['giải thích'] ?? '',
+    }))
+  );
+}
+
+// ---------- CSV ----------
+
+function parseCSVRows(text, delim) {
+  const rows = [];
+  let row = [];
+  let cell = '';
+  let inQ = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (inQ) {
+      if (c === '"') {
+        if (text[i + 1] === '"') { cell += '"'; i++; } else inQ = false;
+      } else cell += c;
+    } else if (c === '"') inQ = true;
+    else if (c === delim) { row.push(cell); cell = ''; }
+    else if (c === '\n' || c === '\r') {
+      if (c === '\r' && text[i + 1] === '\n') i++;
+      row.push(cell); cell = '';
+      rows.push(row); row = [];
+    } else cell += c;
+  }
+  row.push(cell);
+  if (row.some((x) => x.trim() !== '')) rows.push(row);
+  return rows.filter((r) => r.some((x) => x.trim() !== ''));
+}
+
+function parseCSV(text) {
+  const firstLine = text.split(/\r?\n/)[0] || '';
+  const counts = { '\t': 0, ';': 0, ',': 0 };
+  for (const ch of firstLine) if (ch in counts) counts[ch]++;
+  const delim = Object.keys(counts).sort((a, b) => counts[b] - counts[a])[0];
+  const rows = parseCSVRows(text, delim);
+  if (rows.length < 2) return { questions: [], errors: ['CSV cần dòng tiêu đề và ít nhất một câu hỏi'] };
+
+  const header = rows[0].map((h) => h.trim().toLowerCase());
+  const qCol = header.findIndex((h) => /^(question|câu hỏi|cau hoi|q)$/.test(h));
+  const ansCol = header.findIndex((h) => /^(answer|đáp án|dap an|correct|ans|đáp án đúng|dap an dung)$/.test(h));
+  const expCol = header.findIndex((h) => /^(explanation|giải thích|giai thich|explain|note)$/.test(h));
+  const optCols = [];
+  header.forEach((h, i) => {
+    if (/^(?:option|opt|lựa chọn|lua chon|đáp án|dap an)?\s*([a-h]|[1-8])$/.test(h)) optCols.push(i);
+  });
+  if (qCol < 0 || ansCol < 0 || optCols.length < 2) {
+    return {
+      questions: [],
+      errors: ['Dòng tiêu đề CSV cần có: question, A, B, C, D (các đáp án), answer, và tùy chọn explanation'],
+    };
+  }
+  return finalize(
+    rows.slice(1).map((r) => ({
+      q: r[qCol],
+      options: optCols.map((i) => r[i]),
+      answer: r[ansCol],
+      explanation: expCol >= 0 ? r[expCol] : '',
+    }))
+  );
+}
+
+// ---------- TXT ----------
+
+const RE_OPTION = /^\s*(\*|✓|✔)?\s*([A-Ha-h])[.):]\s+(.*)$/;
+const RE_ANSWER = /^\s*(?:đáp án|dap an|answer|ans|đ\/a)\s*[:：-]\s*(.+)$/i;
+const RE_EXPL = /^\s*(?:giải thích|giai thich|explanation|explain)\s*[:：]\s*(.*)$/i;
+const RE_QNUM = /^\s*(?:câu|cau|question|q)?\s*\d+\s*[.):-]\s*/i;
+
+function parseText(text) {
+  const raws = [];
+  let cur = null;
+  let inExpl = false;
+  const start = (q) => {
+    cur = { q, options: [], answer: null, explanation: '', closed: false };
+    raws.push(cur);
+    inExpl = false;
+  };
+
+  for (const line of text.split(/\r?\n/)) {
+    if (!line.trim()) {
+      if (cur && (cur.answer !== null || inExpl)) cur.closed = true;
+      continue;
+    }
+    let m;
+    if ((m = line.match(RE_OPTION)) && cur && !cur.closed) {
+      cur.options.push(m[3].trim());
+      if (m[1]) cur.answer = cur.options.length - 1;
+      inExpl = false;
+    } else if ((m = line.match(RE_ANSWER)) && cur) {
+      cur.answer = m[1].trim();
+      inExpl = false;
+    } else if ((m = line.match(RE_EXPL)) && cur) {
+      cur.explanation = m[1].trim();
+      inExpl = true;
+    } else if (cur && RE_QNUM.test(line) && (cur.answer !== null || cur.options.length > 0)) {
+      start(line.replace(RE_QNUM, '').trim()); // dòng đánh số mới => câu hỏi mới
+    } else if (cur && inExpl && !cur.closed) {
+      cur.explanation += ' ' + line.trim();
+    } else if (cur && !cur.closed && cur.options.length === 0 && cur.answer === null) {
+      cur.q += ' ' + line.trim(); // câu hỏi viết nhiều dòng
+    } else {
+      start(line.replace(RE_QNUM, '').trim());
+    }
+  }
+  return finalize(raws);
+}
+
+// ---------- DOCX (không cần thư viện: đọc zip + giải nén bằng DecompressionStream) ----------
+
+async function docxToText(buf) {
+  const u8 = new Uint8Array(buf);
+  const dv = new DataView(buf);
+  let eocd = -1;
+  for (let i = u8.length - 22; i >= Math.max(0, u8.length - 65557); i--) {
+    if (dv.getUint32(i, true) === 0x06054b50) { eocd = i; break; }
+  }
+  if (eocd < 0) throw new Error('Không phải file .docx hợp lệ');
+  const count = dv.getUint16(eocd + 10, true);
+  let p = dv.getUint32(eocd + 16, true);
+  for (let n = 0; n < count; n++) {
+    if (dv.getUint32(p, true) !== 0x02014b50) break;
+    const method = dv.getUint16(p + 10, true);
+    const csize = dv.getUint32(p + 20, true);
+    const nameLen = dv.getUint16(p + 28, true);
+    const extraLen = dv.getUint16(p + 30, true);
+    const commentLen = dv.getUint16(p + 32, true);
+    const local = dv.getUint32(p + 42, true);
+    const name = new TextDecoder().decode(u8.subarray(p + 46, p + 46 + nameLen));
+    if (name === 'word/document.xml') {
+      const dataStart = local + 30 + dv.getUint16(local + 26, true) + dv.getUint16(local + 28, true);
+      let data = u8.subarray(dataStart, dataStart + csize);
+      if (method === 8) {
+        const stream = new Blob([data]).stream().pipeThrough(new DecompressionStream('deflate-raw'));
+        data = new Uint8Array(await new Response(stream).arrayBuffer());
+      } else if (method !== 0) throw new Error('Kiểu nén .docx không được hỗ trợ');
+      return xmlToText(new TextDecoder().decode(data));
+    }
+    p += 46 + nameLen + extraLen + commentLen;
+  }
+  throw new Error('Không tìm thấy nội dung trong file .docx');
+}
+
+function xmlToText(xml) {
+  return xml
+    .replace(/<\/w:p>/g, '\n')
+    .replace(/<w:br\s*\/?>/g, '\n')
+    .replace(/<w:tab\s*\/?>/g, ' ')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&amp;/g, '&');
+}
+
+// ---------- Điểm vào chính ----------
+
+function parseAny(text, filename = '') {
+  const ext = (filename.split('.').pop() || '').toLowerCase();
+  const t = text.replace(/^\uFEFF/, '').trim();
+  if (!t) return { questions: [], errors: ['Nội dung trống'] };
+  if (ext === 'json' || (ext !== 'csv' && ext !== 'tsv' && /^[[{]/.test(t))) return parseJSON(t);
+  if (ext === 'csv' || ext === 'tsv') return parseCSV(t);
+  return parseText(t);
+}
+
+const TEMPLATES = {
+  txt: `1. Thủ đô của Việt Nam là gì?
+A. Hồ Chí Minh
+*B. Hà Nội
+C. Đà Nẵng
+D. Huế
+Giải thích: Hà Nội là thủ đô của Việt Nam từ năm 1976.
+
+2. 2 + 2 = ?
+A. 3
+B. 4
+C. 5
+Đáp án: B
+`,
+  csv: `question,A,B,C,D,answer,explanation
+Thủ đô của Việt Nam là gì?,Hồ Chí Minh,Hà Nội,Đà Nẵng,Huế,B,Hà Nội là thủ đô từ năm 1976
+2 + 2 = ?,3,4,5,6,B,
+`,
+  json: JSON.stringify(
+    [
+      {
+        question: 'Thủ đô của Việt Nam là gì?',
+        options: ['Hồ Chí Minh', 'Hà Nội', 'Đà Nẵng', 'Huế'],
+        answer: 'B',
+        explanation: 'Hà Nội là thủ đô từ năm 1976.',
+      },
+    ],
+    null,
+    2
+  ),
+};
+
+return { docxToText, parseAny, TEMPLATES };
+})();
+
+const __m_sample = (() => {
+// Bộ đề mẫu để thử ngay, không cần upload.
+const SAMPLE_NAME = 'Kiến thức chung (mẫu)';
+
+const SAMPLE_TEXT = `1. Thủ đô của Việt Nam là gì?
+A. Thành phố Hồ Chí Minh
+*B. Hà Nội
+C. Đà Nẵng
+D. Huế
+Giải thích: Hà Nội là thủ đô của nước Việt Nam thống nhất từ năm 1976.
+
+2. Hành tinh nào gần Mặt Trời nhất?
+*A. Sao Thủy
+B. Sao Kim
+C. Trái Đất
+D. Sao Hỏa
+Giải thích: Sao Thủy nằm gần Mặt Trời nhất, cách khoảng 58 triệu km.
+
+3. Nước hóa học có công thức là gì?
+A. CO2
+*B. H2O
+C. O2
+D. NaCl
+Giải thích: Một phân tử nước gồm 2 nguyên tử hydro và 1 nguyên tử oxy.
+
+4. 12 x 12 = ?
+A. 124
+B. 132
+*C. 144
+D. 156
+
+5. Tác giả của "Truyện Kiều" là ai?
+A. Hồ Xuân Hương
+B. Nguyễn Trãi
+*C. Nguyễn Du
+D. Nguyễn Đình Chiểu
+Giải thích: Nguyễn Du (1766-1820) viết Truyện Kiều bằng chữ Nôm.
+
+6. "Apple" trong tiếng Việt nghĩa là gì?
+A. Quả cam
+*B. Quả táo
+C. Quả chuối
+D. Quả nho
+
+7. Đại dương nào lớn nhất thế giới?
+A. Đại Tây Dương
+B. Ấn Độ Dương
+*C. Thái Bình Dương
+D. Bắc Băng Dương
+Giải thích: Thái Bình Dương chiếm khoảng một phần ba diện tích bề mặt Trái Đất.
+
+8. Con vật nào là động vật có vú sống dưới nước?
+A. Cá mập
+*B. Cá voi
+C. Cá ngừ
+D. Cá chép
+Giải thích: Cá voi thở bằng phổi và nuôi con bằng sữa nên thuộc lớp thú.
+
+9. Năm nào Việt Nam thống nhất đất nước?
+A. 1954
+B. 1973
+*C. 1975
+D. 1986
+
+10. Căn bậc hai của 81 là bao nhiêu?
+A. 7
+B. 8
+*C. 9
+D. 10
+
+11. Ngôn ngữ nào dùng để tạo cấu trúc trang web?
+*A. HTML
+B. Python
+C. SQL
+D. C++
+Giải thích: HTML (HyperText Markup Language) mô tả cấu trúc nội dung trang web.
+
+12. Kim loại nào ở thể lỏng ở nhiệt độ phòng?
+A. Sắt
+B. Đồng
+*C. Thủy ngân
+D. Nhôm
+`;
+
+return { SAMPLE_NAME, SAMPLE_TEXT };
+})();
+
+const __m_games = (() => {
+// Các trò chơi. Mỗi hàm trả về cleanup() để dọn timer/phím tắt khi rời màn chơi.
+const { esc, shuffle } = __m_util;
+const { recordAnswer } = __m_store;
+
+const MODES = {
+  classic: {
+    icon: '📝',
+    name: 'Trắc nghiệm',
+    desc: 'Trả lời lần lượt từng câu, xem giải thích sau mỗi câu.',
+    min: 1,
+  },
+  time: {
+    icon: '⏱️',
+    name: 'Đua thời gian',
+    desc: 'Có 60 giây, trả lời càng nhiều câu đúng càng tốt.',
+    min: 1,
+  },
+  survival: {
+    icon: '❤️',
+    name: 'Sinh tồn',
+    desc: 'Có 3 mạng, sai một câu mất một mạng. Đi được bao xa?',
+    min: 1,
+  },
+  matching: {
+    icon: '🧩',
+    name: 'Ghép cặp',
+    desc: 'Nối câu hỏi với đáp án đúng của nó.',
+    min: 4,
+  },
+};
+
+const CFG = {
+  classic: {},
+  review: {},
+  time: { duration: 60 },
+  survival: { lives: 3 },
+};
+
+const points = (streak) => 100 + Math.min(streak - 1, 5) * 10; // thưởng chuỗi đúng, tối đa +50
+
+function uniqueById(list) {
+  const seen = new Set();
+  return list.filter((q) => (seen.has(q.id) ? false : seen.add(q.id)));
+}
+
+function startGame(opts) {
+  return opts.mode === 'matching' ? runMatching(opts) : runQuiz(opts);
+}
+
+// ================= Trắc nghiệm / Đua thời gian / Sinh tồn =================
+
+function prep(q) {
+  return {
+    id: q.id,
+    q: q.q,
+    explanation: q.explanation,
+    opts: shuffle(q.options.map((t, i) => ({ t, ok: i === q.answer }))),
+  };
+}
+
+function runQuiz({ root, bank, mode, questions, onFinish, onExit }) {
+  const cfg = CFG[mode];
+  let queue = shuffle(questions).map(prep);
+  let i = 0;
+  let score = 0;
+  let streak = 0;
+  let best = 0;
+  let correct = 0;
+  let answered = 0;
+  let lives = cfg.lives;
+  let locked = false;
+  let finished = false;
+  let deadline = 0;
+  let timerId = null;
+  let advanceId = null;
+  const wrong = [];
+
+  const hud = () => {
+    const extra =
+      mode === 'survival'
+        ? `<div class="hud-item" id="lives">${'❤️'.repeat(Math.max(lives, 0))}${'🖤'.repeat(Math.max(cfg.lives - lives, 0))}</div>`
+        : mode === 'time'
+          ? `<div class="hud-item" id="clock">⏱️ ${cfg.duration}s</div>`
+          : `<div class="hud-item">Câu ${Math.min(i + 1, queue.length)}/${queue.length}</div>`;
+    return `<div class="hud">
+      <button class="btn ghost small" data-act="quit">✕ Thoát</button>
+      <div class="hud-item" id="score">⭐ ${score}</div>
+      <div class="hud-item" id="streak">🔥 ${streak}</div>
+      ${extra}
+    </div>`;
+  };
+
+  const barPct = () => {
+    if (mode === 'time') return 100;
+    if (mode === 'survival') return (Math.max(lives, 0) / cfg.lives) * 100;
+    return (i / queue.length) * 100;
+  };
+
+  function render() {
+    const cur = queue[i];
+    root.innerHTML = `<div class="game">
+      ${hud()}
+      <div class="bar"><div class="bar-fill" id="bar" style="width:${barPct()}%"></div></div>
+      <div class="card question"><p class="qtext">${esc(cur.q)}</p></div>
+      <div class="options">${cur.opts
+        .map((o, k) => `<button class="opt" data-k="${k}"><span class="key">${k + 1}</span><span>${esc(o.t)}</span></button>`)
+        .join('')}</div>
+      <div id="fb"></div>
+    </div>`;
+    locked = false;
+  }
+
+  function updateHud() {
+    root.querySelector('#score').textContent = `⭐ ${score}`;
+    root.querySelector('#streak').textContent = `🔥 ${streak}`;
+    const l = root.querySelector('#lives');
+    if (l) l.textContent = '❤️'.repeat(Math.max(lives, 0)) + '🖤'.repeat(Math.max(cfg.lives - lives, 0));
+  }
+
+  function isOver() {
+    if (mode === 'survival') return lives <= 0 || i + 1 >= queue.length;
+    if (mode === 'time') return false;
+    return i + 1 >= queue.length;
+  }
+
+  function answer(k) {
+    if (locked || finished) return;
+    const cur = queue[i];
+    if (!cur.opts[k]) return;
+    locked = true;
+    const ok = cur.opts[k].ok;
+    answered++;
+    let gain = 0;
+    if (ok) {
+      correct++;
+      streak++;
+      best = Math.max(best, streak);
+      gain = points(streak);
+      score += gain;
+    } else {
+      streak = 0;
+      if (lives !== undefined) lives--;
+      wrong.push(cur);
+    }
+    recordAnswer(bank.id, cur.id, ok, streak);
+
+    const btns = root.querySelectorAll('.opt');
+    btns.forEach((b, idx) => {
+      b.disabled = true;
+      if (cur.opts[idx].ok) b.classList.add('correct');
+      else if (idx === k) b.classList.add('wrong');
+    });
+    updateHud();
+
+    const correctText = cur.opts.find((o) => o.ok).t;
+    const last = isOver() || (mode === 'survival' && lives <= 0);
+    root.querySelector('#fb').innerHTML = `<div class="feedback ${ok ? 'good' : 'bad'}">
+        <strong>${ok ? `🎉 Chính xác! +${gain}` : '😅 Chưa đúng'}</strong>
+        ${ok ? '' : `<div>Đáp án đúng: <b>${esc(correctText)}</b></div>`}
+        ${cur.explanation ? `<div class="expl">💡 ${esc(cur.explanation)}</div>` : ''}
+        ${mode === 'time' ? '' : `<button class="btn primary" data-act="next">${last ? 'Xem kết quả' : 'Tiếp tục ▶'}</button>`}
+      </div>`;
+    if (mode === 'time') advanceId = setTimeout(next, ok ? 600 : 1800);
+    else root.querySelector('[data-act="next"]').focus();
+  }
+
+  function next() {
+    if (finished) return;
+    clearTimeout(advanceId);
+    if (isOver() && mode !== 'time') return finish();
+    i++;
+    if (i >= queue.length) queue = queue.concat(shuffle(questions).map(prep)); // đua thời gian: lặp lại đề
+    render();
+  }
+
+  function finish() {
+    if (finished) return;
+    finished = true;
+    cleanup();
+    onFinish({ mode, score, correct, total: answered, bestStreak: best, wrong: uniqueById(wrong) });
+  }
+
+  function onKey(e) {
+    if (/^[1-8]$/.test(e.key)) answer(Number(e.key) - 1);
+    else if ((e.key === 'Enter' || e.key === ' ') && locked && mode !== 'time') {
+      e.preventDefault();
+      next();
+    }
+  }
+
+  function onClick(e) {
+    const opt = e.target.closest('.opt');
+    if (opt) return answer(Number(opt.dataset.k));
+    const act = e.target.closest('[data-act]')?.dataset.act;
+    if (act === 'next') next();
+    if (act === 'quit') {
+      if (answered === 0 || confirm('Thoát ván chơi? Kết quả ván này sẽ không được lưu.')) {
+        finished = true;
+        cleanup();
+        onExit();
+      }
+    }
+  }
+
+  function cleanup() {
+    clearInterval(timerId);
+    clearTimeout(advanceId);
+    document.removeEventListener('keydown', onKey);
+    root.removeEventListener('click', onClick);
+  }
+
+  document.addEventListener('keydown', onKey);
+  root.addEventListener('click', onClick);
+  render();
+
+  if (mode === 'time') {
+    deadline = performance.now() + cfg.duration * 1000;
+    timerId = setInterval(() => {
+      const left = Math.max(0, deadline - performance.now());
+      const clock = root.querySelector('#clock');
+      const bar = root.querySelector('#bar');
+      if (clock) clock.textContent = `⏱️ ${Math.ceil(left / 1000)}s`;
+      if (bar) bar.style.width = (left / (cfg.duration * 1000)) * 100 + '%';
+      if (left <= 0) finish();
+    }, 100);
+  }
+  return cleanup;
+}
+
+// ================= Ghép cặp =================
+
+function runMatching({ root, bank, questions, onFinish, onExit }) {
+  const clip = (s, n) => (s.length > n ? s.slice(0, n - 1) + '…' : s);
+  const seenRight = new Set();
+  const pool = shuffle(questions)
+    .map((q) => ({ id: q.id, left: clip(q.q, 110), right: clip(q.options[q.answer], 70), explanation: q.explanation }))
+    .filter((p) => (seenRight.has(p.right) ? false : seenRight.add(p.right)))
+    .slice(0, 15);
+
+  // Chia vòng, mỗi vòng 5 cặp; phần dư quá nhỏ thì gộp vào vòng trước.
+  const rounds = [];
+  for (let n = 0; n < pool.length; n += 5) rounds.push(pool.slice(n, n + 5));
+  if (rounds.length > 1 && rounds[rounds.length - 1].length < 3) {
+    rounds[rounds.length - 2].push(...rounds.pop());
+  }
+
+  let r = 0;
+  let score = 0;
+  let streak = 0;
+  let best = 0;
+  let mistakes = 0;
+  let matched = 0;
+  let done = 0; // số cặp đã nối trong vòng hiện tại
+  let selected = null;
+  let busy = false;
+  let finished = false;
+  let timeoutId = null;
+  const missed = new Map(); // id -> câu hỏi đã nối sai
+
+  function render() {
+    const cur = rounds[r];
+    const L = shuffle(cur);
+    const R = shuffle(cur);
+    root.innerHTML = `<div class="game">
+      <div class="hud">
+        <button class="btn ghost small" data-act="quit">✕ Thoát</button>
+        <div class="hud-item" id="score">⭐ ${score}</div>
+        <div class="hud-item" id="streak">🔥 ${streak}</div>
+        <div class="hud-item">Vòng ${r + 1}/${rounds.length}</div>
+        <div class="hud-item">❌ ${mistakes}</div>
+      </div>
+      <div class="bar"><div class="bar-fill" style="width:${(matched / pool.length) * 100}%"></div></div>
+      <p class="hint">Chọn một câu hỏi bên trái, rồi chọn đáp án đúng bên phải.</p>
+      <div class="match">
+        <div class="col">${L.map((p) => `<button class="tile" data-side="l" data-id="${p.id}">${esc(p.left)}</button>`).join('')}</div>
+        <div class="col">${R.map((p) => `<button class="tile" data-side="r" data-id="${p.id}">${esc(p.right)}</button>`).join('')}</div>
+      </div>
+    </div>`;
+    done = 0;
+    selected = null;
+    busy = false;
+  }
+
+  function refreshHud() {
+    root.querySelector('#score').textContent = `⭐ ${score}`;
+    root.querySelector('#streak').textContent = `🔥 ${streak}`;
+    root.querySelector('.hud').lastElementChild.textContent = `❌ ${mistakes}`;
+    root.querySelector('.bar-fill').style.width = (matched / pool.length) * 100 + '%';
+  }
+
+  function pick(tile) {
+    if (busy || tile.classList.contains('done')) return;
+    const side = tile.dataset.side;
+    if (side === 'l') {
+      root.querySelectorAll('.tile[data-side="l"]').forEach((t) => t.classList.remove('selected'));
+      if (selected === tile) selected = null;
+      else {
+        selected = tile;
+        tile.classList.add('selected');
+      }
+      return;
+    }
+    if (!selected) {
+      const hint = root.querySelector('.hint');
+      hint.classList.add('pulse');
+      setTimeout(() => hint.classList.remove('pulse'), 600);
+      return;
+    }
+    const id = selected.dataset.id;
+    if (id === tile.dataset.id) {
+      tile.classList.add('done');
+      selected.classList.remove('selected');
+      selected.classList.add('done');
+      streak++;
+      best = Math.max(best, streak);
+      score += points(streak);
+      matched++;
+      done++;
+      if (!missed.has(id)) recordAnswer(bank.id, id, true, streak);
+      selected = null;
+      refreshHud();
+      if (done === rounds[r].length) {
+        busy = true;
+        timeoutId = setTimeout(() => {
+          if (r + 1 >= rounds.length) return finish();
+          r++;
+          render();
+        }, 700);
+      }
+    } else {
+      const left = selected;
+      streak = 0;
+      mistakes++;
+      if (!missed.has(id)) {
+        const p = pool.find((x) => x.id === id);
+        missed.set(id, p);
+        recordAnswer(bank.id, id, false, 0);
+      }
+      busy = true;
+      [left, tile].forEach((t) => t.classList.add('shake'));
+      timeoutId = setTimeout(() => {
+        [left, tile].forEach((t) => t.classList.remove('shake', 'selected'));
+        selected = null;
+        busy = false;
+      }, 450);
+      refreshHud();
+    }
+  }
+
+  function finish() {
+    if (finished) return;
+    finished = true;
+    cleanup();
+    const wrong = questions.filter((q) => missed.has(q.id)).map((q) => ({ id: q.id, q: q.q, explanation: q.explanation, opts: q.options.map((t, i) => ({ t, ok: i === q.answer })) }));
+    onFinish({ mode: 'matching', score, correct: matched, total: matched + mistakes, bestStreak: best, wrong });
+  }
+
+  function onClick(e) {
+    const tile = e.target.closest('.tile');
+    if (tile) return pick(tile);
+    if (e.target.closest('[data-act="quit"]')) {
+      if (matched === 0 || confirm('Thoát ván chơi? Kết quả ván này sẽ không được lưu.')) {
+        finished = true;
+        cleanup();
+        onExit();
+      }
+    }
+  }
+
+  function cleanup() {
+    clearTimeout(timeoutId);
+    root.removeEventListener('click', onClick);
+  }
+
+  root.addEventListener('click', onClick);
+  render();
+  return cleanup;
+}
+
+return { MODES, startGame };
+})();
+
+const __m_main = (() => {
+const { $, esc, shuffle, uid, download } = __m_util;
+const store = __m_store;
+const { parseAny, docxToText, TEMPLATES } = __m_parser;
+const { MODES, startGame } = __m_games;
+const { SAMPLE_NAME, SAMPLE_TEXT } = __m_sample;
+
+const app = $('#app');
+const headerEl = $('#top');
+
+let cleanup = () => {};
+let lastRun = null; // { bankId, mode, count } để chơi lại
+let ui = { listOpen: false };
+
+const MODE_NAMES = { ...Object.fromEntries(Object.entries(MODES).map(([k, v]) => [k, v.name])), review: 'Ôn câu sai' };
+
+// ---------- Điều hướng ----------
+
+function go(view, params = {}) {
+  cleanup();
+  cleanup = () => {};
+  renderHeader();
+  VIEWS[view](params);
+  window.scrollTo(0, 0);
+}
+
+function renderHeader() {
+  const l = store.levelInfo();
+  const streak = store.dayStreak();
+  headerEl.innerHTML = `
+    <button class="logo" data-act="home">🎓 HọcVui</button>
+    <div class="me">
+      <span class="chip" title="Số ngày học liên tiếp">🔥 ${streak} ngày</span>
+      <span class="chip lvl">Cấp ${l.level}</span>
+      <div class="xp" title="${l.xp} / ${l.to} XP"><i style="width:${l.pct}%"></i></div>
+      <small>${l.xp} XP</small>
+    </div>`;
+}
+
+// ---------- Trang chủ ----------
+
+function homeView() {
+  const banks = store.getBanks();
+  const st = store.getStats();
+  const acc = st.answered ? Math.round((st.correct / st.answered) * 100) : 0;
+  app.innerHTML = `
+    <section class="hero">
+      <h1>Vừa chơi vừa học 🎮</h1>
+      <p>Tải lên tài liệu hoặc bộ đề trắc nghiệm của bạn, chọn một trò chơi và bắt đầu.</p>
+      <div class="row">
+        <button class="btn primary big" data-act="import">＋ Thêm bộ đề</button>
+        <button class="btn" data-act="sample">Thử bộ đề mẫu</button>
+      </div>
+    </section>
+
+    <section>
+      <h2>Bộ đề của bạn</h2>
+      ${
+        banks.length
+          ? `<div class="grid">${banks
+              .map((b) => {
+                const w = store.getWrongIds(b.id).length;
+                return `<button class="card bank" data-act="bank" data-id="${b.id}">
+                  <div class="bank-title">📚 ${esc(b.name)}</div>
+                  <div class="muted">${b.questions.length} câu hỏi</div>
+                  ${w ? `<div class="tag">${w} câu cần ôn</div>` : ''}
+                </button>`;
+              })
+              .join('')}</div>`
+          : `<div class="card empty">Chưa có bộ đề nào. Hãy thêm bộ đề của bạn hoặc thử bộ đề mẫu.</div>`
+      }
+    </section>
+
+    <section>
+      <h2>Thống kê</h2>
+      <div class="stats">
+        <div class="card stat"><b>${st.games}</b><span>Ván đã chơi</span></div>
+        <div class="card stat"><b>${st.answered}</b><span>Câu đã trả lời</span></div>
+        <div class="card stat"><b>${acc}%</b><span>Tỉ lệ đúng</span></div>
+        <div class="card stat"><b>${st.bestStreak}</b><span>Chuỗi đúng dài nhất</span></div>
+      </div>
+    </section>
+
+    <section>
+      <h2>Huy hiệu</h2>
+      <div class="badges">${store.BADGES.map((b) => {
+        const ok = b.ok(st);
+        return `<div class="card badge ${ok ? '' : 'locked'}"><div class="ico">${b.icon}</div><b>${b.name}</b><span>${b.desc}</span></div>`;
+      }).join('')}</div>
+    </section>
+
+    ${banks.length || st.games ? `<p class="footer-note"><button class="link danger" data-act="reset">Xóa toàn bộ dữ liệu</button></p>` : ''}
+  `;
+}
+
+// ---------- Thêm bộ đề ----------
+
+function importView() {
+  let parsed = { questions: [], errors: [] };
+  let nameTouched = false;
+  let fileHint = 'paste.txt';
+
+  app.innerHTML = `
+    <button class="link" data-act="home">← Quay lại</button>
+    <h1>Thêm bộ đề</h1>
+    <div class="card form">
+      <label>Tên bộ đề<input id="name" type="text" placeholder="Ví dụ: Lịch sử lớp 9 - Chương 1" maxlength="80"></label>
+
+      <div id="drop" class="drop">
+        <p><b>Kéo thả file vào đây</b> hoặc</p>
+        <label class="btn">Chọn file<input id="file" type="file" accept=".txt,.csv,.tsv,.json,.docx" hidden></label>
+        <p class="muted">Hỗ trợ: .docx, .txt, .csv, .json</p>
+      </div>
+
+      <label>Hoặc dán nội dung trực tiếp
+        <textarea id="text" rows="10" placeholder="1. Câu hỏi?&#10;A. Đáp án 1&#10;*B. Đáp án đúng (đánh dấu bằng dấu *)&#10;C. Đáp án 3&#10;Giải thích: ..."></textarea>
+      </label>
+      <div id="preview"></div>
+      <div class="row">
+        <button class="btn primary" id="save" disabled>Lưu bộ đề</button>
+      </div>
+    </div>
+
+    <details class="card guide">
+      <summary>Định dạng file và file mẫu</summary>
+      <p>Mỗi câu hỏi cần có nội dung, từ 2 đến 8 đáp án và đáp án đúng. Phần giải thích là tùy chọn.</p>
+      <p><b>Văn bản (.txt, .docx)</b>: đánh dấu đáp án đúng bằng <code>*</code> trước chữ cái, hoặc thêm dòng <code>Đáp án: B</code>. Dòng <code>Giải thích: ...</code> là tùy chọn. Các câu cách nhau bằng dòng trống hoặc đánh số.</p>
+      <p><b>CSV</b>: dòng đầu là <code>question,A,B,C,D,answer,explanation</code>. Cột answer ghi chữ cái (A-H), thứ tự (bắt đầu từ 1) hoặc nội dung đáp án.</p>
+      <p><b>JSON</b>: mảng các đối tượng có <code>question</code>, <code>options</code>, <code>answer</code>, <code>explanation</code>.</p>
+      <div class="row">
+        <button class="btn small" data-act="tpl" data-t="txt">Tải mẫu .txt</button>
+        <button class="btn small" data-act="tpl" data-t="csv">Tải mẫu .csv</button>
+        <button class="btn small" data-act="tpl" data-t="json">Tải mẫu .json</button>
+      </div>
+      <p class="muted">Lưu ý: app chỉ đọc được đề đã có sẵn câu hỏi và đáp án. Tài liệu dạng bài giảng thì chưa tự tạo câu hỏi được.</p>
+    </details>
+  `;
+
+  const nameEl = $('#name');
+  const textEl = $('#text');
+  const prevEl = $('#preview');
+  const saveEl = $('#save');
+  const dropEl = $('#drop');
+
+  const reparse = () => {
+    parsed = textEl.value.trim() ? parseAny(textEl.value, fileHint) : { questions: [], errors: [] };
+    const { questions: qs, errors } = parsed;
+    prevEl.innerHTML = !textEl.value.trim()
+      ? ''
+      : `<div class="preview ${qs.length ? 'ok' : 'err'}">
+          <b>${qs.length ? `✅ Đọc được ${qs.length} câu hỏi` : '⚠️ Chưa đọc được câu hỏi nào'}</b>
+          ${errors.length ? `<ul>${errors.slice(0, 8).map((e) => `<li>${esc(e)}</li>`).join('')}${errors.length > 8 ? `<li>... và ${errors.length - 8} lỗi khác</li>` : ''}</ul>` : ''}
+          ${qs.length ? `<div class="muted">Ví dụ: ${esc(qs[0].q)}</div>` : ''}
+        </div>`;
+    saveEl.disabled = !qs.length;
+  };
+
+  async function loadFile(file) {
+    if (!file) return;
+    const ext = file.name.split('.').pop().toLowerCase();
+    try {
+      if (ext === 'docx') {
+        textEl.value = await docxToText(await file.arrayBuffer());
+        fileHint = 'doc.txt';
+      } else if (['txt', 'csv', 'tsv', 'json'].includes(ext)) {
+        textEl.value = await file.text();
+        fileHint = file.name;
+      } else {
+        throw new Error('Định dạng .' + ext + ' chưa được hỗ trợ. Hãy dùng .docx, .txt, .csv hoặc .json (PDF: copy nội dung rồi dán vào ô bên dưới).');
+      }
+    } catch (e) {
+      alert(e.message);
+      return;
+    }
+    if (!nameTouched) nameEl.value = file.name.replace(/\.[^.]+$/, '');
+    reparse();
+  }
+
+  nameEl.addEventListener('input', () => (nameTouched = true));
+  let t;
+  textEl.addEventListener('input', () => {
+    fileHint = 'paste.txt';
+    clearTimeout(t);
+    t = setTimeout(reparse, 250);
+  });
+  $('#file').addEventListener('change', (e) => loadFile(e.target.files[0]));
+  dropEl.addEventListener('dragover', (e) => (e.preventDefault(), dropEl.classList.add('over')));
+  dropEl.addEventListener('dragleave', () => dropEl.classList.remove('over'));
+  dropEl.addEventListener('drop', (e) => {
+    e.preventDefault();
+    dropEl.classList.remove('over');
+    loadFile(e.dataTransfer.files[0]);
+  });
+  saveEl.addEventListener('click', () => {
+    if (!parsed.questions.length) return;
+    const bank = { id: uid(), name: nameEl.value.trim() || 'Bộ đề không tên', createdAt: Date.now(), questions: parsed.questions };
+    store.addBank(bank);
+    go('bank', { id: bank.id });
+  });
+}
+
+// ---------- Trang bộ đề ----------
+
+function bankView({ id }) {
+  const bank = store.getBank(id);
+  if (!bank) return go('home');
+  const n = bank.questions.length;
+  const wrongQs = bank.questions.filter((q) => store.getWrongIds(id).includes(q.id));
+  const counts = [5, 10, 20, 50].filter((c) => c < n);
+
+  app.innerHTML = `
+    <button class="link" data-act="home">← Tất cả bộ đề</button>
+    <div class="bank-head">
+      <div><h1>📚 ${esc(bank.name)}</h1><div class="muted">${n} câu hỏi</div></div>
+      <div class="row">
+        <button class="btn small" data-act="export" data-id="${id}">Xuất JSON</button>
+        <button class="btn small danger" data-act="delbank" data-id="${id}">Xóa bộ đề</button>
+      </div>
+    </div>
+
+    ${
+      wrongQs.length
+        ? `<div class="card review"><div><b>📖 Ôn lại câu đã sai</b><div class="muted">${wrongQs.length} câu bạn từng trả lời sai. Trả lời đúng sẽ gỡ câu khỏi danh sách.</div></div>
+           <button class="btn primary" data-act="play" data-id="${id}" data-mode="review">Ôn ngay</button></div>`
+        : ''
+    }
+
+    <h2>Chọn trò chơi</h2>
+    <div class="grid modes">${Object.entries(MODES)
+      .map(([k, m]) => {
+        const ok = n >= m.min;
+        const best = store.getScores(id, k)[0];
+        return `<div class="card mode ${ok ? '' : 'disabled'}">
+          <div class="ico">${m.icon}</div>
+          <b>${m.name}</b>
+          <p class="muted">${m.desc}</p>
+          ${best ? `<div class="tag">🏆 Kỷ lục: ${best.score}</div>` : ''}
+          ${k === 'classic' ? `<label class="inline">Số câu <select id="count">${counts.map((c) => `<option value="${c}">${c}</option>`).join('')}<option value="all" selected>Tất cả (${n})</option></select></label>` : ''}
+          <button class="btn primary" data-act="play" data-id="${id}" data-mode="${k}" ${ok ? '' : 'disabled'}>${ok ? 'Chơi' : `Cần ít nhất ${m.min} câu`}</button>
+        </div>`;
+      })
+      .join('')}</div>
+
+    <details class="card" id="qlist" ${ui.listOpen ? 'open' : ''}>
+      <summary>Xem danh sách câu hỏi (${n})</summary>
+      <ol class="qlist">${bank.questions
+        .map(
+          (q) => `<li><div class="qrow"><span>${esc(q.q)}<br><small class="muted">Đáp án: ${esc(q.options[q.answer])}</small></span>
+          <button class="link danger" data-act="delq" data-id="${id}" data-q="${q.id}">Xóa</button></div></li>`
+        )
+        .join('')}</ol>
+    </details>
+  `;
+  $('#qlist').addEventListener('toggle', (e) => (ui.listOpen = e.target.open));
+}
+
+function buildQuestions(bank, mode, count) {
+  if (mode === 'review') {
+    const ids = store.getWrongIds(bank.id);
+    return bank.questions.filter((q) => ids.includes(q.id));
+  }
+  const all = bank.questions;
+  if (mode === 'classic' && count && count !== 'all') return shuffle(all).slice(0, Number(count));
+  return all;
+}
+
+// ---------- Màn chơi ----------
+
+function playView({ bankId, mode, count }) {
+  const bank = store.getBank(bankId);
+  if (!bank) return go('home');
+  const questions = buildQuestions(bank, mode, count);
+  if (!questions.length) return go('bank', { id: bankId });
+  lastRun = { bankId, mode, count };
+  app.innerHTML = '<div id="stage"></div>';
+  cleanup = startGame({
+    root: $('#stage'),
+    bank,
+    mode,
+    questions,
+    onExit: () => go('bank', { id: bankId }),
+    onFinish: (res) => {
+      const fin = store.finishGame({ bankId, ...res });
+      go('result', { bankId, res, fin });
+    },
+  });
+}
+
+// ---------- Kết quả ----------
+
+function resultView({ bankId, res, fin }) {
+  const acc = res.total ? Math.round((res.correct / res.total) * 100) : 0;
+  const face = acc >= 90 ? '🏆' : acc >= 70 ? '🎉' : acc >= 40 ? '👍' : '💪';
+  const canReview = res.wrong.length > 0;
+  app.innerHTML = `
+    <div class="result">
+      <div class="big-emoji">${face}</div>
+      <h1>${esc(MODE_NAMES[res.mode] || '')}: kết thúc!</h1>
+      ${fin.record ? '<div class="banner gold">🏅 Kỷ lục mới!</div>' : ''}
+      ${fin.leveledUp ? `<div class="banner">🎊 Lên cấp ${fin.newLevel}!</div>` : ''}
+      <div class="stats">
+        <div class="card stat"><b>${res.score}</b><span>Điểm</span></div>
+        <div class="card stat"><b>${res.correct}/${res.total}</b><span>Đúng</span></div>
+        <div class="card stat"><b>${acc}%</b><span>Chính xác</span></div>
+        <div class="card stat"><b>${res.bestStreak}</b><span>Chuỗi đúng dài nhất</span></div>
+        <div class="card stat"><b>+${fin.gained}</b><span>XP</span></div>
+      </div>
+      <div class="row center">
+        <button class="btn primary" data-act="again">Chơi lại</button>
+        ${canReview ? '<button class="btn" data-act="reviewnow">Ôn câu vừa sai</button>' : ''}
+        <button class="btn" data-act="bank" data-id="${bankId}">Chọn trò khác</button>
+      </div>
+      ${
+        canReview
+          ? `<h2>Các câu cần xem lại (${res.wrong.length})</h2>
+             <div class="wrong-list">${res.wrong
+               .map((w) => {
+                 const right = w.opts.find((o) => o.ok).t;
+                 return `<div class="card"><p class="qtext">${esc(w.q)}</p><div class="good-line">✔ ${esc(right)}</div>${w.explanation ? `<div class="expl">💡 ${esc(w.explanation)}</div>` : ''}</div>`;
+               })
+               .join('')}</div>`
+          : '<p class="muted">Không có câu nào sai. Tuyệt vời!</p>'
+      }
+    </div>`;
+}
+
+const VIEWS = {
+  home: homeView,
+  import: importView,
+  bank: bankView,
+  play: playView,
+  result: resultView,
+};
+
+// ---------- Xử lý click chung ----------
+
+document.addEventListener('click', (e) => {
+  const el = e.target.closest('[data-act]');
+  if (!el) return;
+  const { act, id, mode, q, t } = el.dataset;
+  switch (act) {
+    case 'home':
+      return go('home');
+    case 'import':
+      return go('import');
+    case 'sample': {
+      const r = parseAny(SAMPLE_TEXT, 'sample.txt');
+      const bank = { id: uid(), name: SAMPLE_NAME, createdAt: Date.now(), questions: r.questions };
+      store.addBank(bank);
+      return go('bank', { id: bank.id });
+    }
+    case 'bank':
+      return go('bank', { id });
+    case 'play': {
+      const count = mode === 'classic' ? $('#count')?.value : undefined;
+      return go('play', { bankId: id, mode, count });
+    }
+    case 'again':
+      return go('play', lastRun);
+    case 'reviewnow': {
+      // ôn đúng những câu vừa sai: dùng danh sách sai đã lưu của bộ đề
+      return go('play', { bankId: lastRun.bankId, mode: 'review' });
+    }
+    case 'export': {
+      const b = store.getBank(id);
+      const data = b.questions.map(({ q, options, answer, explanation }) => ({
+        question: q,
+        options,
+        answer: 'ABCDEFGH'[answer],
+        explanation,
+      }));
+      return download(`${b.name}.json`, JSON.stringify(data, null, 2), 'application/json');
+    }
+    case 'delbank':
+      if (confirm('Xóa bộ đề này và toàn bộ tiến độ của nó?')) {
+        store.deleteBank(id);
+        go('home');
+      }
+      return;
+    case 'delq':
+      if (confirm('Xóa câu hỏi này?')) {
+        store.deleteQuestion(id, q);
+        go('bank', { id });
+      }
+      return;
+    case 'tpl':
+      return download(`mau.${t}`, TEMPLATES[t], t === 'json' ? 'application/json' : 'text/plain');
+    case 'reset':
+      if (confirm('Xóa TOÀN BỘ bộ đề, điểm và tiến độ? Không thể hoàn tác.')) {
+        store.resetAll();
+        go('home');
+      }
+      return;
+  }
+});
+
+go('home');
+
+return {  };
+})();
+</script>
+  </body>
+</html>
