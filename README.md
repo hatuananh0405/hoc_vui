@@ -26,7 +26,8 @@ Mở app sẽ vào phòng riêng nhìn chéo từ trên cao (isometric 2.5D), c�
   - Nhạc phát bằng trình phát nhúng chính thức, không cần đăng nhập vào app. Với Spotify, ai đang đăng nhập Spotify trên trình duyệt nghe được cả bài, chưa đăng nhập thì chỉ nghe đoạn 30 giây. Với YouTube, ai không có Premium sẽ thấy quảng cáo.
   - **Bài trước / Bài tiếp**: nếu link đang phát là playlist YouTube thì chuyển bài ngay trong playlist đó. Nếu YouTube không đổi bài thì sang link khác của playlist trong app.
   - Hết một bài lẻ thì tự chuyển sang link tiếp theo. Hết link cuối thì dừng và báo đã phát hết, không quay về bài đầu. Nốt nhạc và radio chỉ nhảy khi nhạc đang phát.
-  - **Mix tự động của YouTube** (link có `list=RD...`) có thể chỉ phát được bài đầu trong trình phát nhúng. Khi gặp trường hợp này, app hiện cảnh báo. Muốn nghe nhiều bài, hãy thêm từng bài vào playlist của app hoặc dùng playlist thường của YouTube.
+  - **Mix tự động của YouTube** (link có `list=RD...`) thường chỉ phát được vài bài đầu trong trình phát nhúng. Bấm **Tách thành từng bài** cạnh link Mix: app lấy danh sách bài của Mix (tối đa 50 bài, bỏ bài trùng) và thay link Mix bằng từng bài, rồi phát lần lượt và tự chuyển bài. Bài nào bị chủ video chặn nhúng sẽ được bỏ qua.
+  - Tính năng tách Mix gửi **ID của Mix** (không gửi gì khác) tới một máy chủ [Invidious](https://invidious.io) công cộng của bên thứ ba, nên app hỏi xác nhận trước. Máy chủ công cộng có thể ngừng hoạt động, khi đó app báo lỗi và bạn có thể thêm từng bài thủ công.
   - Playlist lưu trong trình duyệt (localStorage) cùng với dữ liệu học tập. Đứng dậy khỏi ghế thì nhạc dừng.
 - Góc xem phim hiện mới có hoạt ảnh, chưa phát phim thật.
 - Nút "Bỏ qua" vào menu ngay. Nút 🏫 trên thanh trên cùng đưa về lại phòng.

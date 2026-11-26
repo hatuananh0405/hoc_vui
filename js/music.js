@@ -101,6 +101,74 @@ async function fetchTitle(link) {
   }
 }
 
+// ---------- Tách Mix YouTube thành từng bài ----------
+// Trình phát nhúng của YouTube chỉ cho đi vài bài trong Mix. Để nghe hết, app lấy danh sách
+// bài của Mix từ máy chủ Invidious công cộng (bên thứ ba), rồi lưu từng bài thành một link riêng.
+// Chỉ gửi ID của Mix, không gửi gì khác. Máy chủ công cộng có thể ngừng hoạt động bất cứ lúc nào,
+// nên thử nhiều máy chủ và báo lỗi rõ ràng nếu không máy nào trả lời.
+const INSTANCES_URL = 'https://api.invidious.io/instances.json?sort_by=type,health';
+const FALLBACK_INSTANCES = ['yewtu.be', 'inv.nadeko.net', 'invidious.nerdvpn.de'];
+const HOST_NAME = /^[a-z0-9.-]+$/i;
+const MIX_ID = /^RD[A-Za-z0-9_-]{10,}$/;
+const MAX_MIX_TRACKS = 50;
+const MAX_INSTANCES_TRIED = 6;
+const FETCH_TIMEOUT_MS = 8000;
+
+async function fetchJson(url) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), FETCH_TIMEOUT_MS);
+  try {
+    const res = await fetch(url, { signal: ctrl.signal });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    return await res.json();
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function mixInstances() {
+  try {
+    const list = await fetchJson(INSTANCES_URL);
+    const hosts = list
+      .filter(([host, info]) => HOST_NAME.test(host) && info?.type === 'https' && info.api === true && info.cors === true)
+      .map(([host]) => host);
+    if (hosts.length) return hosts.slice(0, MAX_INSTANCES_TRIED);
+  } catch {
+    /* không lấy được danh sách máy chủ: dùng danh sách dự phòng */
+  }
+  return FALLBACK_INSTANCES;
+}
+
+// Giữ lại những bài có ID hợp lệ, bỏ trùng, giới hạn số bài
+function normalizeTracks(videos) {
+  const seen = new Set();
+  const out = [];
+  for (const v of Array.isArray(videos) ? videos : []) {
+    const id = typeof v?.videoId === 'string' ? v.videoId : '';
+    if (!YT_VIDEO.test(id) || seen.has(id)) continue;
+    seen.add(id);
+    out.push({ videoId: id, title: String(v.title ?? '').trim().slice(0, 150) || 'Video YouTube' });
+    if (out.length >= MAX_MIX_TRACKS) break;
+  }
+  return out;
+}
+
+export async function fetchMixTracks(mixId) {
+  if (!MIX_ID.test(mixId)) throw new Error('ID Mix không hợp lệ');
+  let lastErr = null;
+  for (const host of await mixInstances()) {
+    try {
+      const data = await fetchJson(`https://${host}/api/v1/mixes/${encodeURIComponent(mixId)}`);
+      const tracks = normalizeTracks(data?.videos);
+      if (tracks.length) return tracks;
+      lastErr = new Error(host + ': danh sách rỗng');
+    } catch (err) {
+      lastErr = err;
+    }
+  }
+  throw lastErr ?? new Error('Không có máy chủ nào dùng được');
+}
+
 // ---------- Nạp thư viện trình phát (chỉ nạp một lần) ----------
 // Promise này chỉ báo lỗi: 'blocked' khi trình duyệt / mạng chặn tải file,
 // 'timeout' khi tải xong mà thư viện không báo sẵn sàng sau 15 giây.
@@ -178,10 +246,15 @@ const END_GRACE_MS = 3000;
 const NAV_WAIT_MS = 2500;
 const LIST_END =
   'YouTube không cho chuyển tiếp trong danh sách này (đã hết số bài mà trình phát nhúng cho phép). ' +
-  'Bấm "Mở trên YouTube ↗" để nghe tiếp, hoặc thêm từng bài vào playlist của app.';
+  'Để nghe liền mạch, bấm "Tách thành từng bài" ở link Mix trong danh sách bên dưới, hoặc "Mở trên YouTube ↗".';
 const MIX_SINGLE =
   'YouTube từ chối mở danh sách này trong trình phát nhúng, nên chỉ phát được bài đầu. ' +
-  'Muốn nghe nhiều bài, hãy thêm từng bài vào playlist của app, hoặc dùng playlist thường của YouTube.';
+  'Hãy bấm "Tách thành từng bài" ở link Mix trong danh sách bên dưới, hoặc thêm từng bài vào playlist của app.';
+const SPLIT_CONFIRM =
+  'Để tách Mix, app sẽ gửi ID của Mix này (không gửi gì khác) tới một máy chủ Invidious công cộng của bên thứ ba để lấy danh sách bài. Tiếp tục?';
+const SPLIT_WAIT = '⏳ Đang lấy danh sách bài trong Mix... (có thể mất vài giây)';
+const SPLIT_FAIL =
+  '⚠️ Không tách được Mix: các máy chủ công cộng đang không phản hồi hoặc không hỗ trợ Mix. Hãy thử lại sau, hoặc thêm từng bài vào playlist.';
 
 // Chỉ gửi origin khi chạy trên web thật; mở file trên máy thì không có origin.
 const pageOrigin = () => (/^https?:$/.test(location.protocol) ? location.origin : null);
@@ -451,7 +524,8 @@ export function createMusicPanel(root, { onPlaying = () => {} } = {}) {
   let unmount = null;
   let error = '';
   let draft = {}; // giữ lại chữ đã gõ khi form báo lỗi
-  let note = ''; // thông báo ở đầu danh sách (ví dụ: đã phát hết playlist)
+  let note = null; // thông báo ở đầu danh sách: { text, bad }
+  let splitting = false; // đang tách Mix
   let msgTimer = 0;
   let gone = false;
 
@@ -530,7 +604,7 @@ export function createMusicPanel(root, { onPlaying = () => {} } = {}) {
       step(1);
       return;
     }
-    note = p ? `Đã phát hết playlist "${p.name}". Bấm ▶ Phát để nghe lại từ đầu.` : '';
+    note = p ? { text: `✅ Đã phát hết playlist "${p.name}". Bấm ▶ Phát để nghe lại từ đầu.` } : null;
     stop();
   }
 
@@ -582,7 +656,7 @@ export function createMusicPanel(root, { onPlaying = () => {} } = {}) {
     if (gone) return;
     const lists = store.getPlaylists();
     const err = error ? `<div class="mp-err">${esc(error)}</div>` : '';
-    const noteHtml = note ? `<div class="mp-note">✅ ${esc(note)}</div>` : '';
+    const noteHtml = note ? `<div class="mp-note${note.bad ? ' bad' : ''}">${esc(note.text)}</div>` : '';
     if (mode === 'new') {
       body.innerHTML = `
         <form class="mp-form" data-form="new">
@@ -644,9 +718,11 @@ export function createMusicPanel(root, { onPlaying = () => {} } = {}) {
   function renderItem(p, it, i) {
     const on = current?.pid === p.id && current.index === i;
     const icon = on ? '🔊' : '▶';
+    const link = parseMusicLink(it.url);
+    const split = link?.mix ? `<button class="link" data-mp="split" data-id="${p.id}" data-item="${it.id}">Tách thành từng bài</button>` : '';
     return `<li class="${on ? 'on' : ''}">
-        <button class="mp-item" data-mp="playItem" data-id="${p.id}" data-i="${i}">${icon} ${srcTag(parseMusicLink(it.url))} ${esc(it.title)}</button>
-        <button class="link danger" data-mp="delItem" data-id="${p.id}" data-item="${it.id}">Xoá</button>
+        <button class="mp-item" data-mp="playItem" data-id="${p.id}" data-i="${i}">${icon} ${srcTag(link)} ${esc(it.title)}</button>
+        <span class="mp-actions">${split}<button class="link danger" data-mp="delItem" data-id="${p.id}" data-item="${it.id}">Xoá</button></span>
       </li>`;
   }
 
@@ -682,6 +758,9 @@ export function createMusicPanel(root, { onPlaying = () => {} } = {}) {
     playItem: (d) => play(d.id, Number(d.i)),
     del: (d) => deleteList(d.id),
     delItem: (d) => deleteItem(d.id, d.item),
+    split: (d) => {
+      void splitMix(d.id, d.item);
+    },
     new: () => showMode('new'),
     save: () => showMode('save'),
     cancel: () => showMode('list'),
@@ -701,9 +780,39 @@ export function createMusicPanel(root, { onPlaying = () => {} } = {}) {
     const action = el && ACTIONS[el.dataset.mp];
     if (!action) return;
     error = '';
-    note = '';
+    note = null;
     if (!PLAYER_ACTIONS.has(el.dataset.mp)) draft = {};
     action(el.dataset);
+  }
+
+  // Thay link Mix bằng từng bài trong Mix. Bài nào bị chặn nhúng sẽ được bỏ qua khi phát.
+  async function splitMix(pid, itemId) {
+    const item = store.getPlaylist(pid)?.items.find((x) => x.id === itemId);
+    const link = item && parseMusicLink(item.url);
+    if (!link?.mix || splitting || !confirm(SPLIT_CONFIRM)) return;
+    splitting = true;
+    note = { text: SPLIT_WAIT };
+    renderBody();
+    try {
+      const tracks = await fetchMixTracks(link.listId);
+      if (gone) return;
+      applySplit(pid, itemId, tracks);
+    } catch (err) {
+      if (gone) return;
+      console.warn('[HọcVui] Không tách được Mix:', err);
+      note = { text: SPLIT_FAIL, bad: true };
+    } finally {
+      splitting = false;
+    }
+    renderBody();
+  }
+
+  function applySplit(pid, itemId, tracks) {
+    if (current?.pid === pid) stop();
+    const items = tracks.map((t) => ({ id: uid(), url: `https://www.youtube.com/watch?v=${t.videoId}`, title: t.title }));
+    store.replacePlaylistItem(pid, itemId, items);
+    openId = pid;
+    note = { text: `✅ Đã tách Mix thành ${items.length} bài. Bấm ▶ Phát để nghe lần lượt.` };
   }
 
   function deleteList(id) {
