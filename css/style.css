@@ -256,3 +256,5 @@ textarea { resize: vertical; font-family: ui-monospace, Menlo, Consolas, monospa
 .mp-status { font-size: .88rem; min-height: 1.2em; }
 .mp-now a, .mp-err a { color: var(--primary); }
 .mp-note { background: var(--good-bg); color: #14684a; padding: 6px 10px; border-radius: 8px; font-size: .9rem; }
+.mp-actions { display: flex; gap: 12px; flex: none; align-items: center; }
+.mp-note.bad { background: var(--bad-bg); color: #9b2226; }

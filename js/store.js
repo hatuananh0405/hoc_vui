@@ -165,6 +165,15 @@ export function removePlaylistItem(id, itemId) {
   save();
 }
 
+// Thay một link bằng nhiều link (dùng khi tách Mix thành từng bài), giữ nguyên thứ tự.
+export function replacePlaylistItem(id, itemId, items) {
+  const p = getPlaylist(id);
+  const i = p ? p.items.findIndex((x) => x.id === itemId) : -1;
+  if (i < 0) return;
+  p.items.splice(i, 1, ...items);
+  save();
+}
+
 export function setItemTitle(id, itemId, title) {
   const it = getPlaylist(id)?.items.find((x) => x.id === itemId);
   if (!it || !title) return;
